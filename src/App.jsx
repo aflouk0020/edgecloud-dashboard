@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
+import DevicesPage from "./pages/devices/DevicesPage";
 
 import DashboardLayout from "./components/layout/DashboardLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -9,6 +10,7 @@ import ProtectedRoute from "./components/common/ProtectedRoute";
 function App() {
   return (
     <Routes>
+
       <Route
         path="/login"
         element={<LoginPage />}
@@ -26,9 +28,21 @@ function App() {
       />
 
       <Route
+        path="/devices"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <DevicesPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="*"
         element={<Navigate to="/dashboard" replace />}
       />
+
     </Routes>
   );
 }
