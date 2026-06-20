@@ -5,31 +5,11 @@ function Sidebar() {
     <aside>
       <nav>
         <ul>
-
-          <li>
-            <Link to="/dashboard">
-              Dashboard
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/services">
-              Services
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/devices">
-              Devices
-            </Link>
-          </li>
-
-          <li>
-            <Link to="/alerts">
-              Alerts
-            </Link>
-          </li>
-
+          <li><Link to="/dashboard">Dashboard</Link></li>
+          <li><Link to="/services">Services</Link></li>
+          <li><Link to="/devices">Devices</Link></li>
+          <li><Link to="/telemetry">Telemetry</Link></li>
+          <li><Link to="/alerts">Alerts</Link></li>
         </ul>
       </nav>
     </aside>

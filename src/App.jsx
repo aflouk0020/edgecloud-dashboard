@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import DevicesPage from "./pages/devices/DevicesPage";
+import TelemetryPage from "./pages/telemetry/TelemetryPage";
 
 import DashboardLayout from "./components/layout/DashboardLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -33,6 +34,17 @@ function App() {
           <ProtectedRoute>
             <DashboardLayout>
               <DevicesPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/telemetry"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <TelemetryPage />
             </DashboardLayout>
           </ProtectedRoute>
         }
