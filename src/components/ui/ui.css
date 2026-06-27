@@ -1,0 +1,162 @@
+.ui-page-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px;
+  margin-bottom: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 34%),
+    linear-gradient(135deg, #ffffff, #f8fafc);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+}
+
+.ui-page-hero h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 44px;
+  letter-spacing: -0.05em;
+}
+
+.ui-page-hero p {
+  margin: 8px 0 0;
+  color: #64748b;
+}
+
+.ui-eyebrow {
+  margin: 0 0 8px !important;
+  color: #2563eb !important;
+  font-size: 12px !important;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ui-stat-card {
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+}
+
+.ui-stat-card span {
+  display: block;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.ui-stat-card strong {
+  display: block;
+  margin-top: 16px;
+  color: #0f172a;
+  font-size: 42px;
+}
+
+.ui-stat-card.success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.ui-stat-card.warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.ui-stat-card.danger {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.ui-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.ui-status-badge.online,
+.ui-status-badge.low,
+.ui-status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ui-status-badge.offline,
+.ui-status-badge.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.ui-status-badge.medium,
+.ui-status-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ui-primary-button,
+.ui-secondary-button {
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ui-primary-button {
+  border: 0;
+  background: #2563eb;
+  color: white;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.26);
+}
+
+.ui-secondary-button {
+  border: 1px solid #dbeafe;
+  background: white;
+  color: #2563eb;
+}
+
+.ui-state-panel {
+  padding: 34px;
+  border-radius: 24px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+  text-align: center;
+}
+
+.ui-empty-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 14px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.ui-error-state {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #991b1b;
+}
+
+.ui-skeleton {
+  height: 120px;
+  border-radius: 20px;
+  background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9);
+  background-size: 200% 100%;
+  animation: uiPulse 1.3s infinite;
+}
+
+@keyframes uiPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

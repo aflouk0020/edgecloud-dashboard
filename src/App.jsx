@@ -4,6 +4,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
+import AlertsPage from "./pages/alerts/AlertsPage";
 
 import DashboardLayout from "./components/layout/DashboardLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -45,6 +46,17 @@ function App() {
           <ProtectedRoute>
             <DashboardLayout>
               <TelemetryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/alerts"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AlertsPage />
             </DashboardLayout>
           </ProtectedRoute>
         }
