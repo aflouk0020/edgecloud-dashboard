@@ -7,6 +7,11 @@ const navItems = [
     icon: "⌂"
   },
   {
+    label: "Services",
+    path: "/services",
+    icon: "◇"
+  },
+  {
     label: "Devices",
     path: "/devices",
     icon: "▣"

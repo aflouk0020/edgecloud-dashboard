@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
+import ServicesPage from "./pages/services/ServicesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
 import AlertsPage from "./pages/alerts/AlertsPage";
@@ -24,6 +25,17 @@ function App() {
           <ProtectedRoute>
             <DashboardLayout>
               <DashboardPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/services"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ServicesPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

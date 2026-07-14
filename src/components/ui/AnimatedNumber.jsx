@@ -1,24 +1,15 @@
 import { useEffect, useState } from "react";
 
-function AnimatedNumber({ value, duration = 600 }) {
-  const numericValue = Number(value);
-
-  const [displayValue, setDisplayValue] = useState(
-    Number.isFinite(numericValue) ? 0 : value
-  );
+function NumericAnimatedNumber({ value, duration }) {
+  const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
-    if (!Number.isFinite(numericValue)) {
-      setDisplayValue(value);
-      return;
-    }
-
     let frameId;
     const startTime = performance.now();
 
     function animate(currentTime) {
       const progress = Math.min((currentTime - startTime) / duration, 1);
-      const nextValue = Math.round(numericValue * progress);
+      const nextValue = Math.round(value * progress);
 
       setDisplayValue(nextValue);
 
@@ -30,9 +21,25 @@ function AnimatedNumber({ value, duration = 600 }) {
     frameId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(frameId);
-  }, [numericValue, value, duration]);
+  }, [value, duration]);
 
   return displayValue;
+}
+
+function AnimatedNumber({ value, duration = 600 }) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return value;
+  }
+
+  return (
+    <NumericAnimatedNumber
+      key={numericValue}
+      value={numericValue}
+      duration={duration}
+    />
+  );
 }
 
 export default AnimatedNumber;

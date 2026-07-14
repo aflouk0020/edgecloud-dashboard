@@ -35,7 +35,7 @@ describe("AlertsPage", () => {
   it("renders active alerts from the Alert Service", async () => {
     getActiveAlerts.mockResolvedValue(mockAlerts);
 
-    render(<AlertsPage />);
+    render(React.createElement(AlertsPage));
 
     expect(screen.getByText("Loading current platform incidents..."))
       .toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("AlertsPage", () => {
   it("shows an empty state when there are no active alerts", async () => {
     getActiveAlerts.mockResolvedValue([]);
 
-    render(<AlertsPage />);
+    render(React.createElement(AlertsPage));
 
     expect(await screen.findByText("No Active Alerts"))
       .toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("AlertsPage", () => {
   it("shows an error state when alerts cannot be loaded", async () => {
     getActiveAlerts.mockRejectedValue(new Error("API unavailable"));
 
-    render(<AlertsPage />);
+    render(React.createElement(AlertsPage));
 
     expect(await screen.findByText("Unable to complete request"))
       .toBeInTheDocument();
@@ -81,7 +81,7 @@ describe("AlertsPage", () => {
 
     getActiveAlerts.mockResolvedValue(mockAlerts);
 
-    render(<AlertsPage />);
+    render(React.createElement(AlertsPage));
 
     await screen.findByText("DEVICE_OFFLINE");
 
@@ -90,6 +90,69 @@ describe("AlertsPage", () => {
     await waitFor(() => {
       expect(getActiveAlerts).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("filters alerts by severity, type, and search text", async () => {
+    const user = userEvent.setup();
+
+    getActiveAlerts.mockResolvedValue([
+      mockAlerts[0],
+      {
+        id: "alert-2",
+        alertType: "HIGH_LATENCY",
+        severity: "MEDIUM",
+        message: "Monitoring Service latency is above threshold",
+        sourceService: "monitoring-service",
+        status: "ACTIVE",
+        resolved: false,
+        createdAt: "2026-06-23T15:35:00"
+      }
+    ]);
+
+    render(React.createElement(AlertsPage));
+
+    await screen.findByText("DEVICE_OFFLINE");
+
+    await user.selectOptions(
+      screen.getByLabelText("Severity"),
+      "MEDIUM"
+    );
+
+    expect(screen.getByText("HIGH_LATENCY")).toBeInTheDocument();
+    expect(screen.queryByText("DEVICE_OFFLINE")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Clear filters"));
+    await user.selectOptions(
+      screen.getByLabelText("Alert type"),
+      "DEVICE_OFFLINE"
+    );
+
+    expect(screen.getByText("DEVICE_OFFLINE")).toBeInTheDocument();
+    expect(screen.queryByText("HIGH_LATENCY")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Clear filters"));
+    await user.type(
+      screen.getByLabelText("Message, source, or type"),
+      "monitoring-service"
+    );
+
+    expect(screen.getByText("HIGH_LATENCY")).toBeInTheDocument();
+    expect(screen.queryByText("DEVICE_OFFLINE")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when filters have no matches", async () => {
+    const user = userEvent.setup();
+    getActiveAlerts.mockResolvedValue(mockAlerts);
+
+    render(React.createElement(AlertsPage));
+
+    await screen.findByText("DEVICE_OFFLINE");
+    await user.type(
+      screen.getByLabelText("Message, source, or type"),
+      "database"
+    );
+
+    expect(screen.getByText("No Matching Alerts")).toBeInTheDocument();
   });
 
   it("resolves an active alert", async () => {
@@ -105,7 +168,7 @@ describe("AlertsPage", () => {
       resolved: true
     });
 
-    render(<AlertsPage />);
+    render(React.createElement(AlertsPage));
 
     await screen.findByText("DEVICE_OFFLINE");
 
