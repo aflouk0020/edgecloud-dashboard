@@ -1,13 +1,13 @@
 import { apiRequest } from "./apiClient";
 
-export async function getDevices() {
-  return apiRequest("/api/v1/devices");
+export function getMonitoringAnalytics() {
+  return apiRequest("/api/v1/monitoring/analytics");
 }
 
-export async function getTelemetryHistory() {
-  return apiRequest("/api/v1/monitoring/history");
+export function getDeviceSummary() {
+  return apiRequest("/api/v1/devices/summary");
 }
 
-export async function getActiveAlerts() {
-  return apiRequest("/api/v1/alerts");
+export function getAlertSummary() {
+  return apiRequest("/api/v1/alerts/summary");
 }
