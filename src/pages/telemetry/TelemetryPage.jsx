@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import HistoricalLineChart from "../../components/charts/HistoricalLineChart";
+import MonitoringFilterBar, {
+  FilterSelect
+} from "../../components/filters/MonitoringFilterBar";
+import { PrimaryButton } from "../../components/ui/Buttons";
+import EmptyState from "../../components/ui/EmptyState";
 import { getTelemetryHistory } from "../../services/telemetryService";
 
 function formatDate(value) {
@@ -60,6 +65,9 @@ export default function TelemetryPage() {
   const [serviceMetrics, setServiceMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [recordLimit, setRecordLimit] = useState("30");
 
   async function loadTelemetry() {
     try {
@@ -88,14 +96,66 @@ export default function TelemetryPage() {
     }
   }
 
-  useEffect(() => {
-    loadTelemetry();
+  React.useEffect(() => {
+    let active = true;
+
+    getTelemetryHistory()
+      .then(data => {
+        if (!active) {
+          return;
+        }
+
+        setTelemetry(
+          Array.isArray(data.telemetryMetrics)
+            ? data.telemetryMetrics
+            : []
+        );
+        setServiceMetrics(
+          Array.isArray(data.serviceMetrics)
+            ? data.serviceMetrics
+            : []
+        );
+        setError("");
+      })
+      .catch(() => {
+        if (active) {
+          setError(
+            "Unable to load historical monitoring data. Please verify the Monitoring Service is running."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const telemetryChartData = useMemo(
-    () => normaliseTelemetry(telemetry).slice(-30),
-    [telemetry]
-  );
+  const filteredTelemetry = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return telemetry.filter(record => {
+      const matchesSearch =
+        !query ||
+        record.deviceId?.toLowerCase().includes(query) ||
+        record.id?.toLowerCase().includes(query);
+
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        record.heartbeatStatus === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [searchQuery, statusFilter, telemetry]);
+
+  const telemetryChartData = useMemo(() => {
+    return normaliseTelemetry(filteredTelemetry)
+      .slice(-Number(recordLimit));
+  }, [filteredTelemetry, recordLimit]);
 
   const serviceChartData = useMemo(
     () => normaliseServiceMetrics(serviceMetrics).slice(-30),
@@ -103,6 +163,16 @@ export default function TelemetryPage() {
   );
 
   const latest = telemetryChartData.at(-1);
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    statusFilter !== "ALL" ||
+    recordLimit !== "30";
+
+  function clearFilters() {
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setRecordLimit("30");
+  }
 
   if (loading) {
     return (
@@ -166,73 +236,143 @@ export default function TelemetryPage() {
 
       {!error && (telemetry.length > 0 || serviceMetrics.length > 0) && (
         <>
-          <div className="alert-summary-grid">
-            <div className="alert-summary-card">
-              <span>Latest CPU Usage</span>
-              <strong>{formatMetric(latest?.cpuUsage, "%")}</strong>
-            </div>
-
-            <div className="alert-summary-card">
-              <span>Latest Memory Usage</span>
-              <strong>{formatMetric(latest?.memoryUsage, "%")}</strong>
-            </div>
-
-            <div className="alert-summary-card medium">
-              <span>Latest Temperature</span>
-              <strong>{formatMetric(latest?.temperature, "°C")}</strong>
-            </div>
-
-            <div className="alert-summary-card low">
-              <span>Historical Records</span>
-              <strong>{telemetry.length + serviceMetrics.length}</strong>
-            </div>
-          </div>
-
-          <div className="monitoring-chart-grid">
-            <HistoricalLineChart
-              title="CPU Usage Trend"
-              description="Edge device processor utilisation over time."
-              valueLabel="Compute"
-              data={telemetryChartData}
-              dataKey="cpuUsage"
-              unit="%"
-              lineColour="#2563eb"
-              domain={[0, 100]}
-            />
-
-            <HistoricalLineChart
-              title="Memory Usage Trend"
-              description="Historical memory utilisation from edge telemetry."
-              valueLabel="Memory"
-              data={telemetryChartData}
-              dataKey="memoryUsage"
-              unit="%"
-              lineColour="#16a34a"
-              domain={[0, 100]}
-            />
-
-            <HistoricalLineChart
-              title="Temperature Trend"
-              description="Thermal behaviour reported by monitored edge devices."
-              valueLabel="Thermal"
-              data={telemetryChartData}
-              dataKey="temperature"
-              unit="°C"
-              lineColour="#ea580c"
-            />
-
-            <HistoricalLineChart
-              title="Service Response Time"
-              description="Recorded backend service latency across health checks."
-              valueLabel="Service Performance"
-              data={serviceChartData}
-              dataKey="responseTimeMs"
-              unit=" ms"
-              lineColour="#7c3aed"
-            />
-          </div>
-
           {telemetry.length > 0 && (
+            <MonitoringFilterBar
+              searchId="telemetry-search"
+              searchLabel="Device ID"
+              searchPlaceholder="Search telemetry by device ID..."
+              searchValue={searchQuery}
+              onSearchChange={event => setSearchQuery(event.target.value)}
+              resultCount={telemetryChartData.length}
+              totalCount={telemetry.length}
+              hasActiveFilters={hasActiveFilters}
+              onClear={clearFilters}
+            >
+              <FilterSelect
+                id="telemetry-status-filter"
+                label="Heartbeat status"
+                value={statusFilter}
+                onChange={event => setStatusFilter(event.target.value)}
+                options={[
+                  { value: "ALL", label: "All statuses" },
+                  { value: "ONLINE", label: "Online" },
+                  { value: "OFFLINE", label: "Offline" }
+                ]}
+              />
+
+              <FilterSelect
+                id="telemetry-limit-filter"
+                label="Latest records"
+                value={recordLimit}
+                onChange={event => setRecordLimit(event.target.value)}
+                options={[
+                  { value: "12", label: "Latest 12" },
+                  { value: "30", label: "Latest 30" },
+                  { value: "50", label: "Latest 50" }
+                ]}
+              />
+            </MonitoringFilterBar>
+          )}
+
+          {telemetry.length > 0 && telemetryChartData.length === 0 && (
+            <EmptyState
+              title="No Matching Telemetry"
+              message="No telemetry records match the current device and heartbeat-status filters."
+              action={
+                <PrimaryButton onClick={clearFilters}>
+                  Clear Filters
+                </PrimaryButton>
+              }
+            />
+          )}
+
+          {telemetryChartData.length > 0 && (
+            <>
+              <div className="alert-summary-grid">
+                <div className="alert-summary-card">
+                  <span>Latest CPU Usage</span>
+                  <strong>{formatMetric(latest?.cpuUsage, "%")}</strong>
+                </div>
+
+                <div className="alert-summary-card">
+                  <span>Latest Memory Usage</span>
+                  <strong>{formatMetric(latest?.memoryUsage, "%")}</strong>
+                </div>
+
+                <div className="alert-summary-card medium">
+                  <span>Latest Temperature</span>
+                  <strong>{formatMetric(latest?.temperature, "°C")}</strong>
+                </div>
+
+                <div className="alert-summary-card low">
+                  <span>Visible Telemetry</span>
+                  <strong>{telemetryChartData.length}</strong>
+                </div>
+              </div>
+
+              <div className="monitoring-chart-grid">
+                <HistoricalLineChart
+                  title="CPU Usage Trend"
+                  description="Edge device processor utilisation over time."
+                  valueLabel="Compute"
+                  data={telemetryChartData}
+                  dataKey="cpuUsage"
+                  unit="%"
+                  lineColour="#2563eb"
+                  domain={[0, 100]}
+                />
+
+                <HistoricalLineChart
+                  title="Memory Usage Trend"
+                  description="Historical memory utilisation from edge telemetry."
+                  valueLabel="Memory"
+                  data={telemetryChartData}
+                  dataKey="memoryUsage"
+                  unit="%"
+                  lineColour="#16a34a"
+                  domain={[0, 100]}
+                />
+
+                <HistoricalLineChart
+                  title="Temperature Trend"
+                  description="Thermal behaviour reported by monitored edge devices."
+                  valueLabel="Thermal"
+                  data={telemetryChartData}
+                  dataKey="temperature"
+                  unit="°C"
+                  lineColour="#ea580c"
+                />
+
+                {serviceChartData.length > 0 && (
+                  <HistoricalLineChart
+                    title="Service Response Time"
+                    description="Recorded backend service latency across health checks."
+                    valueLabel="Service Performance"
+                    data={serviceChartData}
+                    dataKey="responseTimeMs"
+                    unit=" ms"
+                    lineColour="#7c3aed"
+                  />
+                )}
+              </div>
+            </>
+          )}
+
+          {telemetry.length === 0 && serviceChartData.length > 0 && (
+            <div className="monitoring-chart-grid">
+              <HistoricalLineChart
+                title="Service Response Time"
+                description="Recorded backend service latency across health checks."
+                valueLabel="Service Performance"
+                data={serviceChartData}
+                dataKey="responseTimeMs"
+                unit=" ms"
+                lineColour="#7c3aed"
+              />
+            </div>
+          )}
+
+          {telemetryChartData.length > 0 && (
             <section className="telemetry-history-section">
               <div className="telemetry-section-header">
                 <div>
@@ -245,7 +385,7 @@ export default function TelemetryPage() {
                   </span>
                 </div>
 
-                <strong>{telemetry.length} records</strong>
+                <strong>{telemetryChartData.length} records</strong>
               </div>
 
               <div className="data-panel">
@@ -262,13 +402,12 @@ export default function TelemetryPage() {
                   </thead>
 
                   <tbody>
-                    {[...telemetry]
+                    {[...telemetryChartData]
                       .sort(
                         (first, second) =>
                           new Date(second.recordedAt) -
                           new Date(first.recordedAt)
                       )
-                      .slice(0, 12)
                       .map(record => (
                         <tr key={record.id}>
                           <td className="mono-value">

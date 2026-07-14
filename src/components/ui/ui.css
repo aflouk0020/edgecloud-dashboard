@@ -81,6 +81,7 @@
 }
 
 .ui-status-badge.online,
+.ui-status-badge.up,
 .ui-status-badge.low,
 .ui-status-badge.active {
   background: #dcfce7;
@@ -88,6 +89,7 @@
 }
 
 .ui-status-badge.offline,
+.ui-status-badge.down,
 .ui-status-badge.high {
   background: #fee2e2;
   color: #991b1b;
@@ -97,6 +99,11 @@
 .ui-status-badge.warning {
   background: #fef3c7;
   color: #92400e;
+}
+
+.ui-status-badge.unknown {
+  background: #e2e8f0;
+  color: #475569;
 }
 
 .ui-primary-button,

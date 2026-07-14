@@ -1,6 +1,10 @@
-import React from "react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
+import MonitoringFilterBar, {
+  FilterSelect
+} from "../../components/filters/MonitoringFilterBar";
+import { PrimaryButton } from "../../components/ui/Buttons";
+import EmptyState from "../../components/ui/EmptyState";
 import {
   getActiveAlerts,
   resolveAlert
@@ -29,6 +33,9 @@ function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState("");
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
 
   async function loadAlerts() {
     try {
@@ -56,8 +63,32 @@ function AlertsPage() {
     }
   }
 
-  useEffect(() => {
-    loadAlerts();
+  React.useEffect(() => {
+    let active = true;
+
+    getActiveAlerts()
+      .then(data => {
+        if (active) {
+          setAlerts(Array.isArray(data) ? data : []);
+          setError("");
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError(
+            "Unable to load active alerts. Please verify that the Alert Service and API Gateway are running."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const summary = useMemo(() => {
@@ -68,6 +99,53 @@ function AlertsPage() {
       low: alerts.filter(alert => alert.severity === "LOW").length
     };
   }, [alerts]);
+
+  const alertTypeOptions = useMemo(() => {
+    const alertTypes = [...new Set(
+      alerts
+        .map(alert => alert.alertType)
+        .filter(Boolean)
+    )].sort();
+
+    return [
+      { value: "ALL", label: "All alert types" },
+      ...alertTypes.map(alertType => ({
+        value: alertType,
+        label: alertType.replaceAll("_", " ")
+      }))
+    ];
+  }, [alerts]);
+
+  const filteredAlerts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return alerts.filter(alert => {
+      const matchesSearch =
+        !query ||
+        alert.message?.toLowerCase().includes(query) ||
+        alert.sourceService?.toLowerCase().includes(query) ||
+        alert.alertType?.toLowerCase().includes(query);
+
+      const matchesSeverity =
+        severityFilter === "ALL" || alert.severity === severityFilter;
+
+      const matchesType =
+        typeFilter === "ALL" || alert.alertType === typeFilter;
+
+      return matchesSearch && matchesSeverity && matchesType;
+    });
+  }, [alerts, searchQuery, severityFilter, typeFilter]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    severityFilter !== "ALL" ||
+    typeFilter !== "ALL";
+
+  function clearFilters() {
+    setSearchQuery("");
+    setSeverityFilter("ALL");
+    setTypeFilter("ALL");
+  }
 
   if (loading) {
     return (
@@ -146,10 +224,55 @@ function AlertsPage() {
         </div>
       )}
 
-      {alerts.length > 0 && (
-        <div className="incident-list">
-          {alerts.map(alert => (
-            <article className="incident-card" key={alert.id}>
+      {!error && alerts.length > 0 && (
+        <>
+          <MonitoringFilterBar
+            searchId="alert-search"
+            searchLabel="Message, source, or type"
+            searchPlaceholder="Search service down..."
+            searchValue={searchQuery}
+            onSearchChange={event => setSearchQuery(event.target.value)}
+            resultCount={filteredAlerts.length}
+            totalCount={alerts.length}
+            hasActiveFilters={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              id="alert-severity-filter"
+              label="Severity"
+              value={severityFilter}
+              onChange={event => setSeverityFilter(event.target.value)}
+              options={[
+                { value: "ALL", label: "All severities" },
+                { value: "HIGH", label: "High" },
+                { value: "MEDIUM", label: "Medium" },
+                { value: "LOW", label: "Low" }
+              ]}
+            />
+
+            <FilterSelect
+              id="alert-type-filter"
+              label="Alert type"
+              value={typeFilter}
+              onChange={event => setTypeFilter(event.target.value)}
+              options={alertTypeOptions}
+            />
+          </MonitoringFilterBar>
+
+          {filteredAlerts.length === 0 ? (
+            <EmptyState
+              title="No Matching Alerts"
+              message="No active alerts match the current search, severity, and alert-type filters."
+              action={
+                <PrimaryButton onClick={clearFilters}>
+                  Clear Filters
+                </PrimaryButton>
+              }
+            />
+          ) : (
+            <div className="incident-list">
+              {filteredAlerts.map(alert => (
+                <article className="incident-card" key={alert.id}>
               <div className="incident-card-header">
                 <span className={getSeverityClass(alert.severity)}>
                   {alert.severity}
@@ -203,9 +326,11 @@ function AlertsPage() {
                   {resolvingId === alert.id ? "Resolving..." : "Resolve Alert"}
                 </button>
               </div>
-            </article>
-          ))}
-        </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </section>
   );

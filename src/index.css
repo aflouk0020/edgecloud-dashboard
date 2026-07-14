@@ -1245,3 +1245,210 @@ input:focus {
   font-size: 14px;
   line-height: 1.65;
 }
+
+/* Monitoring Search and Filter Controls */
+.monitoring-filter-bar {
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid #dbe3ef;
+  border-radius: 24px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(37, 99, 235, 0.08),
+      transparent 34%
+    ),
+    #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.07);
+}
+
+.monitoring-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.monitoring-filter-heading h3 {
+  margin: 3px 0 0;
+  color: #0f172a;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.monitoring-filter-eyebrow {
+  margin: 0;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.monitoring-filter-results {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.monitoring-filter-results strong {
+  color: #1d4ed8;
+  font-size: 15px;
+}
+
+.monitoring-filter-controls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.7fr) repeat(2, minmax(150px, 0.8fr)) auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.monitoring-filter-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.monitoring-filter-field > span {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.monitoring-filter-field input,
+.monitoring-filter-field select {
+  width: 100%;
+  min-height: 46px;
+  box-sizing: border-box;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.monitoring-filter-field input {
+  border: 0;
+  padding: 11px 12px 11px 0;
+}
+
+.monitoring-filter-field select {
+  appearance: none;
+  padding: 11px 38px 11px 13px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #64748b 50%),
+    linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 19px,
+    calc(100% - 13px) 19px;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, 5px 5px;
+}
+
+.monitoring-search-input {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding-left: 13px;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.monitoring-search-input > span {
+  margin-right: 9px;
+  color: #64748b;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.monitoring-search-input:focus-within,
+.monitoring-filter-field select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.11);
+}
+
+.monitoring-search-input input:focus {
+  box-shadow: none;
+}
+
+.monitoring-filter-clear {
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.monitoring-filter-clear:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.monitoring-filter-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.services-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.service-url {
+  color: #2563eb;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.service-url:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1100px) {
+  .monitoring-filter-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .monitoring-search-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .monitoring-filter-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .monitoring-filter-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-search-field {
+    grid-column: auto;
+  }
+
+  .monitoring-filter-clear {
+    width: 100%;
+  }
+}

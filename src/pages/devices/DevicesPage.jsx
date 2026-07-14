@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 
+import MonitoringFilterBar, {
+  FilterSelect
+} from "../../components/filters/MonitoringFilterBar";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
@@ -28,6 +31,9 @@ export default function DevicesPage() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
 
   async function loadDevices() {
     try {
@@ -43,8 +49,32 @@ export default function DevicesPage() {
     }
   }
 
-  useEffect(() => {
-    loadDevices();
+  React.useEffect(() => {
+    let active = true;
+
+    getDevices()
+      .then(data => {
+        if (active) {
+          setDevices(Array.isArray(data) ? data : []);
+          setError("");
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError(
+            "Unable to load devices. Please verify the Device Service is running."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const onlineCount =
@@ -52,6 +82,53 @@ export default function DevicesPage() {
 
   const offlineCount =
     devices.filter(device => device.status === "OFFLINE").length;
+
+  const deviceTypeOptions = useMemo(() => {
+    const deviceTypes = [...new Set(
+      devices
+        .map(device => device.deviceType)
+        .filter(Boolean)
+    )].sort();
+
+    return [
+      { value: "ALL", label: "All device types" },
+      ...deviceTypes.map(deviceType => ({
+        value: deviceType,
+        label: deviceType
+      }))
+    ];
+  }, [devices]);
+
+  const filteredDevices = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return devices.filter(device => {
+      const matchesSearch =
+        !query ||
+        device.deviceName?.toLowerCase().includes(query) ||
+        device.ipAddress?.toLowerCase().includes(query) ||
+        device.id?.toLowerCase().includes(query);
+
+      const matchesStatus =
+        statusFilter === "ALL" || device.status === statusFilter;
+
+      const matchesType =
+        typeFilter === "ALL" || device.deviceType === typeFilter;
+
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [devices, searchQuery, statusFilter, typeFilter]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    statusFilter !== "ALL" ||
+    typeFilter !== "ALL";
+
+  function clearFilters() {
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setTypeFilter("ALL");
+  }
 
   if (loading) {
     return (
@@ -117,42 +194,88 @@ export default function DevicesPage() {
       )}
 
       {!error && devices.length > 0 && (
-        <div className="incident-list">
-          {devices.map(device => (
-            <article className="incident-card" key={device.id}>
-              <div className="incident-card-header">
-                <StatusBadge variant={device.status}>
-                  {device.status}
-                </StatusBadge>
+        <>
+          <MonitoringFilterBar
+            searchId="device-search"
+            searchLabel="Device name, IP, or ID"
+            searchPlaceholder="Search raspberry-pi-01..."
+            searchValue={searchQuery}
+            onSearchChange={event => setSearchQuery(event.target.value)}
+            resultCount={filteredDevices.length}
+            totalCount={devices.length}
+            hasActiveFilters={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              id="device-status-filter"
+              label="Device status"
+              value={statusFilter}
+              onChange={event => setStatusFilter(event.target.value)}
+              options={[
+                { value: "ALL", label: "All statuses" },
+                { value: "ONLINE", label: "Online" },
+                { value: "OFFLINE", label: "Offline" }
+              ]}
+            />
 
-                <span className="incident-type">
-                  {device.deviceName}
-                </span>
-              </div>
+            <FilterSelect
+              id="device-type-filter"
+              label="Device type"
+              value={typeFilter}
+              onChange={event => setTypeFilter(event.target.value)}
+              options={deviceTypeOptions}
+            />
+          </MonitoringFilterBar>
 
-              <p className="incident-message">
-                {device.deviceType} edge node registered at {device.ipAddress}
-              </p>
+          {filteredDevices.length === 0 ? (
+            <EmptyState
+              title="No Matching Devices"
+              message="No registered devices match the current search, status, and device-type filters."
+              action={
+                <PrimaryButton onClick={clearFilters}>
+                  Clear Filters
+                </PrimaryButton>
+              }
+            />
+          ) : (
+            <div className="incident-list">
+              {filteredDevices.map(device => (
+                <article className="incident-card" key={device.id}>
+                  <div className="incident-card-header">
+                    <StatusBadge variant={device.status}>
+                      {device.status}
+                    </StatusBadge>
 
-              <div className="incident-meta-grid">
-                <div>
-                  <span>IP Address</span>
-                  <strong>{device.ipAddress}</strong>
-                </div>
+                    <span className="incident-type">
+                      {device.deviceName}
+                    </span>
+                  </div>
 
-                <div>
-                  <span>Registered</span>
-                  <strong>{formatDate(device.registeredAt)}</strong>
-                </div>
+                  <p className="incident-message">
+                    {device.deviceType} edge node registered at {device.ipAddress}
+                  </p>
 
-                <div>
-                  <span>Last Heartbeat</span>
-                  <strong>{formatDate(device.lastHeartbeat)}</strong>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+                  <div className="incident-meta-grid">
+                    <div>
+                      <span>IP Address</span>
+                      <strong>{device.ipAddress}</strong>
+                    </div>
+
+                    <div>
+                      <span>Registered</span>
+                      <strong>{formatDate(device.registeredAt)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Last Heartbeat</span>
+                      <strong>{formatDate(device.lastHeartbeat)}</strong>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
