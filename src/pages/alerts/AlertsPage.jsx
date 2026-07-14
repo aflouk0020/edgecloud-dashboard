@@ -164,6 +164,19 @@ function AlertsPage() {
                 {alert.message}
               </p>
 
+              {alert.rootCauseSuggestion && (
+                <div className="root-cause-panel">
+                  <div className="root-cause-header">
+                    <span className="root-cause-icon">💡</span>
+
+                    <div>
+                      <strong>Possible Root Cause</strong>
+                      <p>{alert.rootCauseSuggestion}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="incident-meta-grid">
                 <div>
                   <span>Source</span>
