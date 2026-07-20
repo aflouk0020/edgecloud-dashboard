@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
 import MonitoringFilterBar, {
   FilterSelect
 } from "../../components/filters/MonitoringFilterBar";
+import ServiceReliabilityPanel from "../../components/services/ServiceReliabilityPanel";
 import { PrimaryButton } from "../../components/ui/Buttons";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
@@ -10,7 +11,10 @@ import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
-import { getMonitoredServices } from "../../services/serviceMonitoringService";
+import {
+  getMonitoredServices,
+  getServiceAvailability
+} from "../../services/serviceMonitoringService";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "All statuses" },
@@ -33,45 +37,116 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function reliabilityState(loading = false, error = false) {
+  return { loading, error };
+}
+
 export default function ServicesPage() {
   const [services, setServices] = useState([]);
+  const [availabilityByService, setAvailabilityByService] = useState({});
+  const [reliabilityByService, setReliabilityByService] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
-  async function loadServices() {
+  const loadReliability = useCallback(async serviceId => {
+    setAvailabilityByService(previous => {
+      const next = { ...previous };
+      delete next[serviceId];
+      return next;
+    });
+
+    setReliabilityByService(previous => ({
+      ...previous,
+      [serviceId]: reliabilityState(true, false)
+    }));
+
+    try {
+      const availability = await getServiceAvailability(serviceId);
+
+      setAvailabilityByService(previous => ({
+        ...previous,
+        [serviceId]: availability
+      }));
+
+      setReliabilityByService(previous => ({
+        ...previous,
+        [serviceId]: reliabilityState(false, false)
+      }));
+    } catch {
+      setReliabilityByService(previous => ({
+        ...previous,
+        [serviceId]: reliabilityState(false, true)
+      }));
+    }
+  }, []);
+
+  const applyServices = useCallback(monitoredServices => {
+    setServices(monitoredServices);
+
+    const initialReliability = Object.fromEntries(
+      monitoredServices.map(service => [
+        service.id,
+        reliabilityState(true, false)
+      ])
+    );
+
+    setReliabilityByService(initialReliability);
+
+    monitoredServices.forEach(service => {
+      loadReliability(service.id);
+    });
+  }, [loadReliability]);
+
+  const loadServices = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
+      setAvailabilityByService({});
+      setReliabilityByService({});
 
       const data = await getMonitoredServices();
-      setServices(Array.isArray(data) ? data : []);
+      const monitoredServices = Array.isArray(data) ? data : [];
+
+      applyServices(monitoredServices);
     } catch {
+      setServices([]);
+      setAvailabilityByService({});
+      setReliabilityByService({});
       setError(
         "Unable to load monitored services. Please verify the Monitoring Service and API Gateway are running."
       );
     } finally {
       setLoading(false);
     }
-  }
+  }, [applyServices]);
 
   React.useEffect(() => {
     let active = true;
 
     getMonitoredServices()
       .then(data => {
-        if (active) {
-          setServices(Array.isArray(data) ? data : []);
-          setError("");
+        if (!active) {
+          return;
         }
+
+        const monitoredServices = Array.isArray(data) ? data : [];
+
+        setError("");
+        applyServices(monitoredServices);
       })
       .catch(() => {
-        if (active) {
-          setError(
-            "Unable to load monitored services. Please verify the Monitoring Service and API Gateway are running."
-          );
+        if (!active) {
+          return;
         }
+
+        setServices([]);
+        setAvailabilityByService({});
+        setReliabilityByService({});
+        setError(
+          "Unable to load monitored services. Please verify the Monitoring Service and API Gateway are running."
+        );
       })
       .finally(() => {
         if (active) {
@@ -82,7 +157,7 @@ export default function ServicesPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyServices]);
 
   const filteredServices = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -99,6 +174,21 @@ export default function ServicesPage() {
       return matchesSearch && matchesStatus;
     });
   }, [searchQuery, services, statusFilter]);
+
+  const reliabilitySummaries = Object.values(availabilityByService)
+    .filter(summary => Number(summary?.totalChecks) > 0);
+
+  const averageUptime = reliabilitySummaries.length > 0
+    ? Math.round(
+        (
+          reliabilitySummaries.reduce(
+            (total, summary) =>
+              total + (Number(summary.uptimePercentage) || 0),
+            0
+          ) / reliabilitySummaries.length
+        ) * 100
+      ) / 100
+    : null;
 
   const upCount = services.filter(service => service.status === "UP").length;
   const downCount = services.filter(service => service.status === "DOWN").length;
@@ -121,8 +211,8 @@ export default function ServicesPage() {
     <section className="services-page">
       <PageHero
         eyebrow="Monitoring Service"
-        title="Service Health Monitoring"
-        description="Search registered services and inspect their latest health-check status and endpoint configuration."
+        title="Service Health and Reliability"
+        description="Inspect current health, historical uptime, response latency, and downtime activity across registered platform services."
         action={
           <PrimaryButton onClick={loadServices}>
             Refresh Services
@@ -134,6 +224,17 @@ export default function ServicesPage() {
         <StatCard title="Monitored Services" value={services.length} />
         <StatCard title="Services Up" value={upCount} variant="success" />
         <StatCard title="Services Down" value={downCount} variant="danger" />
+        <StatCard
+          title="Average Uptime"
+          value={averageUptime === null ? "—" : `${averageUptime}%`}
+          variant={
+            averageUptime === null
+              ? ""
+              : averageUptime >= 95
+                ? "success"
+                : "warning"
+          }
+        />
       </div>
 
       {error && (
@@ -193,47 +294,60 @@ export default function ServicesPage() {
             />
           ) : (
             <div className="incident-list">
-              {filteredServices.map(service => (
-                <article className="incident-card" key={service.id}>
-                  <div className="incident-card-header">
-                    <StatusBadge variant={service.status || "UNKNOWN"}>
-                      {service.status || "UNKNOWN"}
-                    </StatusBadge>
+              {filteredServices.map(service => {
+                const reliability =
+                  reliabilityByService[service.id] ||
+                  reliabilityState(true, false);
 
-                    <span className="incident-type">
-                      {service.serviceName}
-                    </span>
-                  </div>
+                return (
+                  <article className="incident-card" key={service.id}>
+                    <div className="incident-card-header">
+                      <StatusBadge variant={service.status || "UNKNOWN"}>
+                        {service.status || "UNKNOWN"}
+                      </StatusBadge>
 
-                  <p className="incident-message">
-                    Latest registered health state for this monitored endpoint.
-                  </p>
-
-                  <div className="incident-meta-grid">
-                    <div>
-                      <span>Service URL</span>
-                      <a
-                        className="service-url"
-                        href={service.serviceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {service.serviceUrl}
-                      </a>
+                      <span className="incident-type">
+                        {service.serviceName}
+                      </span>
                     </div>
 
-                    <div>
-                      <span>Registered</span>
-                      <strong>{formatDate(service.createdAt)}</strong>
+                    <p className="incident-message">
+                      Current service health and historical operational reliability.
+                    </p>
+
+                    <div className="incident-meta-grid">
+                      <div>
+                        <span>Service URL</span>
+                        <a
+                          className="service-url"
+                          href={service.serviceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {service.serviceUrl}
+                        </a>
+                      </div>
+
+                      <div>
+                        <span>Registered</span>
+                        <strong>{formatDate(service.createdAt)}</strong>
+                      </div>
+
+                      <div>
+                        <span>Service ID</span>
+                        <strong>{service.id}</strong>
+                      </div>
                     </div>
 
-                    <div>
-                      <span>Service ID</span>
-                      <strong>{service.id}</strong>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                    <ServiceReliabilityPanel
+                      availability={availabilityByService[service.id]}
+                      loading={reliability.loading}
+                      error={reliability.error}
+                      onRetry={() => loadReliability(service.id)}
+                    />
+                  </article>
+                );
+              })}
             </div>
           )}
         </>

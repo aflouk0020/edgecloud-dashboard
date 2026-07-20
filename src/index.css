@@ -1775,3 +1775,233 @@ input:focus {
     width: 100%;
   }
 }
+
+/* SCRUM-99 Service Reliability */
+
+.service-reliability-panel {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.1), transparent 38%),
+    #f8fafc;
+}
+
+.service-reliability-panel.success {
+  border-color: #bbf7d0;
+  background:
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 38%),
+    #f8fafc;
+}
+
+.service-reliability-panel.warning {
+  border-color: #fde68a;
+  background:
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 38%),
+    #fffbeb;
+}
+
+.service-reliability-panel.danger {
+  border-color: #fecaca;
+  background:
+    radial-gradient(circle at top right, rgba(239, 68, 68, 0.1), transparent 38%),
+    #fff7f7;
+}
+
+.service-reliability-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.service-reliability-header > div {
+  min-width: 0;
+}
+
+.service-reliability-eyebrow {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.service-reliability-header strong {
+  display: block;
+  color: #0f172a;
+  font-size: 34px;
+  letter-spacing: -0.04em;
+}
+
+.service-reliability-header strong small {
+  margin-left: 6px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: normal;
+}
+
+.service-reliability-progress {
+  height: 9px;
+  margin: 18px 0 20px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.service-reliability-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 0.3s ease;
+}
+
+.service-reliability-panel.success .service-reliability-progress span {
+  background: #16a34a;
+}
+
+.service-reliability-panel.warning .service-reliability-progress span {
+  background: #d97706;
+}
+
+.service-reliability-panel.danger .service-reliability-progress span {
+  background: #dc2626;
+}
+
+.service-reliability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.service-reliability-grid > div {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.service-reliability-grid span {
+  display: block;
+  margin-bottom: 7px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.service-reliability-grid strong {
+  display: block;
+  color: #0f172a;
+  font-size: 22px;
+  word-break: break-word;
+}
+
+.service-reliability-grid strong small {
+  display: inline;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.service-reliability-grid > div > small {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.service-reliability-grid .service-reliability-date {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.service-reliability-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  margin-top: 22px;
+  padding: 18px 20px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 18px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-weight: 800;
+}
+
+.service-reliability-state > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.service-reliability-state strong,
+.service-reliability-state span {
+  display: block;
+}
+
+.service-reliability-state > div > span {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.service-reliability-state.empty {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.service-reliability-state.error {
+  justify-content: space-between;
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #991b1b;
+}
+
+.service-reliability-spinner {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 3px solid #bfdbfe;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: serviceReliabilitySpin 0.8s linear infinite;
+}
+
+@keyframes serviceReliabilitySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1000px) {
+  .service-reliability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .service-reliability-header,
+  .service-reliability-state.error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .service-reliability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-reliability-header strong {
+    font-size: 29px;
+  }
+}
