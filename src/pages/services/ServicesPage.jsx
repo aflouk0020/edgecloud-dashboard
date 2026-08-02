@@ -11,6 +11,7 @@ import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import { getServiceAggregation } from "../../services/metricAggregationService";
 import {
   getMonitoredServices,
   getServiceAvailability
@@ -41,10 +42,34 @@ function reliabilityState(loading = false, error = false) {
   return { loading, error };
 }
 
+function aggregationState(loading = false, error = false) {
+  return { loading, error };
+}
+
+function firstSummary(response) {
+  return response?.summaries?.[0] || null;
+}
+
+function metricValue(summary, key) {
+  return summary?.metrics?.[key];
+}
+
+function availabilityValue(summary, key) {
+  return summary?.availability?.[key];
+}
+
+function summaryTimestamp(summary) {
+  return summary?.availability?.latestRecordedAt
+    || summary?.series?.[0]?.recordedAt
+    || null;
+}
+
 export default function ServicesPage() {
   const [services, setServices] = useState([]);
   const [availabilityByService, setAvailabilityByService] = useState({});
   const [reliabilityByService, setReliabilityByService] = useState({});
+  const [aggregationByService, setAggregationByService] = useState({});
+  const [aggregationStateByService, setAggregationStateByService] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,6 +107,38 @@ export default function ServicesPage() {
     }
   }, []);
 
+  const loadAggregation = useCallback(async serviceId => {
+    setAggregationByService(previous => {
+      const next = { ...previous };
+      delete next[serviceId];
+      return next;
+    });
+
+    setAggregationStateByService(previous => ({
+      ...previous,
+      [serviceId]: aggregationState(true, false)
+    }));
+
+    try {
+      const aggregation = await getServiceAggregation(serviceId);
+
+      setAggregationByService(previous => ({
+        ...previous,
+        [serviceId]: aggregation
+      }));
+
+      setAggregationStateByService(previous => ({
+        ...previous,
+        [serviceId]: aggregationState(false, false)
+      }));
+    } catch {
+      setAggregationStateByService(previous => ({
+        ...previous,
+        [serviceId]: aggregationState(false, true)
+      }));
+    }
+  }, []);
+
   const applyServices = useCallback(monitoredServices => {
     setServices(monitoredServices);
 
@@ -93,11 +150,7 @@ export default function ServicesPage() {
     );
 
     setReliabilityByService(initialReliability);
-
-    monitoredServices.forEach(service => {
-      loadReliability(service.id);
-    });
-  }, [loadReliability]);
+  }, []);
 
   const loadServices = useCallback(async () => {
     try {
@@ -105,6 +158,8 @@ export default function ServicesPage() {
       setError("");
       setAvailabilityByService({});
       setReliabilityByService({});
+      setAggregationByService({});
+      setAggregationStateByService({});
 
       const data = await getMonitoredServices();
       const monitoredServices = Array.isArray(data) ? data : [];
@@ -114,6 +169,8 @@ export default function ServicesPage() {
       setServices([]);
       setAvailabilityByService({});
       setReliabilityByService({});
+      setAggregationByService({});
+      setAggregationStateByService({});
       setError(
         "Unable to load monitored services. Please verify the Monitoring Service and API Gateway are running."
       );
@@ -144,6 +201,8 @@ export default function ServicesPage() {
         setServices([]);
         setAvailabilityByService({});
         setReliabilityByService({});
+        setAggregationByService({});
+        setAggregationStateByService({});
         setError(
           "Unable to load monitored services. Please verify the Monitoring Service and API Gateway are running."
         );
@@ -174,6 +233,23 @@ export default function ServicesPage() {
       return matchesSearch && matchesStatus;
     });
   }, [searchQuery, services, statusFilter]);
+
+  const spotlightService = filteredServices[0] || null;
+  const spotlightAggregation = spotlightService
+    ? aggregationByService[spotlightService.id]
+    : null;
+  const spotlightAggregationState = spotlightService
+    ? aggregationStateByService[spotlightService.id] || aggregationState(true, false)
+    : aggregationState(true, false);
+
+  React.useEffect(() => {
+    if (!spotlightService) {
+      return;
+    }
+
+    loadReliability(spotlightService.id);
+    loadAggregation(spotlightService.id);
+  }, [loadAggregation, loadReliability, spotlightService?.id]);
 
   const reliabilitySummaries = Object.values(availabilityByService)
     .filter(summary => Number(summary?.totalChecks) > 0);
@@ -236,6 +312,82 @@ export default function ServicesPage() {
           }
         />
       </div>
+
+      {!error && spotlightService && (
+        <section className="service-reliability-panel info">
+          <div className="service-reliability-header">
+            <div>
+              <span className="service-reliability-eyebrow">
+                Aggregation spotlight
+              </span>
+              <strong>{spotlightService.serviceName}</strong>
+            </div>
+            <span className="service-reliability-date">
+              {summaryTimestamp(firstSummary(spotlightAggregation))
+                ? `Latest sample: ${formatDate(summaryTimestamp(firstSummary(spotlightAggregation)))}`
+                : "Latest sample unavailable"}
+            </span>
+          </div>
+
+          {spotlightAggregationState.loading ? (
+            <LoadingState message="Loading service aggregation..." />
+          ) : spotlightAggregationState.error ? (
+            <ErrorState
+              title="Service aggregation unavailable"
+              message="The aggregation endpoint could not be loaded right now."
+            />
+          ) : spotlightAggregation?.emptyResult ? (
+            <EmptyState
+              title="No aggregation samples yet"
+              message="This service has no aggregation data in the selected scope."
+            />
+          ) : (
+            <div className="service-reliability-grid">
+              <div>
+                <span>Average response time</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "averageValue") ?? "—"}
+                  <small> ms</small>
+                </strong>
+              </div>
+              <div>
+                <span>Minimum response time</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "minimumValue") ?? "—"}
+                  <small> ms</small>
+                </strong>
+              </div>
+              <div>
+                <span>Maximum response time</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "maximumValue") ?? "—"}
+                  <small> ms</small>
+                </strong>
+              </div>
+              <div>
+                <span>Sample count</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "sampleCount") ?? 0}
+                </strong>
+              </div>
+              <div>
+                <span>Availability</span>
+                <strong>
+                  {availabilityValue(firstSummary(spotlightAggregation), "availabilityPercentage") ?? 0}
+                  <small>%</small>
+                </strong>
+              </div>
+              <div>
+                <span>Latest value</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "latestValue") ?? "—"}
+                  <small> ms</small>
+                </strong>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {error && (
         <ErrorState

@@ -57,6 +57,8 @@ describe("DashboardPage", () => {
 
     expect(await screen.findByText("Platform Analytics"))
       .toBeInTheDocument();
+    expect(screen.getByText("Project aggregation unavailable"))
+      .toBeInTheDocument();
 
     const uptimeCard = screen.getByText("Service uptime").closest("article");
     expect(within(uptimeCard).getByText("98.5")).toBeInTheDocument();

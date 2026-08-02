@@ -14,6 +14,7 @@ import {
 } from "vitest";
 
 import ServicesPage from "./ServicesPage";
+import { getServiceAggregation } from "../../services/metricAggregationService";
 import {
   getMonitoredServices,
   getServiceAvailability
@@ -22,6 +23,10 @@ import {
 vi.mock("../../services/serviceMonitoringService", () => ({
   getMonitoredServices: vi.fn(),
   getServiceAvailability: vi.fn()
+}));
+
+vi.mock("../../services/metricAggregationService", () => ({
+  getServiceAggregation: vi.fn()
 }));
 
 const mockServices = [
@@ -74,11 +79,44 @@ const availabilityById = {
   }
 };
 
-function mockSuccessfulReliability() {
-  getServiceAvailability.mockImplementation(
-    serviceId => Promise.resolve(availabilityById[serviceId])
-  );
-}
+const aggregationResponse = {
+  scope: "SERVICE",
+  serviceId: "service-1",
+  deviceId: null,
+  projectId: null,
+  dateRange: { from: null, to: null, openEnded: true },
+  emptyResult: false,
+  summaries: [
+    {
+      scope: "SERVICE",
+      metrics: {
+        averageValue: 125.5,
+        minimumValue: 100,
+        maximumValue: 150,
+        latestValue: 128,
+        sampleCount: 2
+      },
+      availability: {
+        totalSamples: 2,
+        availableSamples: 2,
+        unavailableSamples: 0,
+        availabilityPercentage: 100,
+        latestRecordedAt: "2026-07-20T15:01:00"
+      },
+      series: []
+    }
+  ]
+};
+
+  function mockSuccessfulReliability() {
+    getServiceAvailability.mockImplementation(
+      serviceId => Promise.resolve(availabilityById[serviceId])
+    );
+  }
+
+  function mockSuccessfulAggregation() {
+    getServiceAggregation.mockResolvedValue(aggregationResponse);
+  }
 
 describe("ServicesPage", () => {
   beforeEach(() => {
@@ -88,6 +126,7 @@ describe("ServicesPage", () => {
   it("displays historical reliability metrics for monitored services", async () => {
     getMonitoredServices.mockResolvedValue(mockServices);
     mockSuccessfulReliability();
+    mockSuccessfulAggregation();
 
     render(<ServicesPage />);
 
@@ -100,7 +139,7 @@ describe("ServicesPage", () => {
       .toHaveAttribute("aria-valuenow", "99");
 
     const monitoringCard = screen
-      .getByText("monitoring-service")
+      .getAllByText("monitoring-service")[1]
       .closest(".incident-card");
 
     expect(
@@ -115,13 +154,11 @@ describe("ServicesPage", () => {
       within(monitoringCard).getByText("125.5")
     ).toBeInTheDocument();
 
-    const deviceCard = screen
-      .getByText("device-service")
-      .closest(".incident-card");
-
     expect(
-      within(deviceCard).getByText("ACTIVE DOWNTIME")
+      await screen.findByText("Aggregation spotlight")
     ).toBeInTheDocument();
+    expect(screen.getByText("Average response time")).toBeInTheDocument();
+    expect(screen.getAllByText("125.5")[0]).toBeInTheDocument();
   });
 
   it("filters monitored services by name and status", async () => {
@@ -129,13 +166,15 @@ describe("ServicesPage", () => {
 
     getMonitoredServices.mockResolvedValue(mockServices);
     mockSuccessfulReliability();
+    mockSuccessfulAggregation();
 
     render(<ServicesPage />);
 
-    expect(await screen.findByText("monitoring-service"))
-      .toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("monitoring-service"))[0]
+    ).toBeInTheDocument();
 
-    expect(screen.getByText("device-service"))
+    expect(screen.getAllByText("device-service")[0])
       .toBeInTheDocument();
 
     await user.type(
@@ -143,7 +182,7 @@ describe("ServicesPage", () => {
       "monitoring"
     );
 
-    expect(screen.getByText("monitoring-service"))
+    expect(screen.getAllByText("monitoring-service")[1])
       .toBeInTheDocument();
 
     expect(screen.queryByText("device-service"))
@@ -157,7 +196,7 @@ describe("ServicesPage", () => {
     );
 
     const serviceList = screen
-      .getByText("device-service")
+      .getAllByText("device-service")[1]
       .closest(".incident-list");
 
     expect(
@@ -171,6 +210,7 @@ describe("ServicesPage", () => {
 
   it("shows a no-history fallback when no checks exist", async () => {
     getMonitoredServices.mockResolvedValue([mockServices[0]]);
+    mockSuccessfulAggregation();
 
     getServiceAvailability.mockResolvedValue({
       ...availabilityById["service-1"],
@@ -202,6 +242,7 @@ describe("ServicesPage", () => {
     const user = userEvent.setup();
 
     getMonitoredServices.mockResolvedValue([mockServices[0]]);
+    mockSuccessfulAggregation();
 
     getServiceAvailability
       .mockRejectedValueOnce(new Error("Unavailable"))
@@ -213,7 +254,7 @@ describe("ServicesPage", () => {
       await screen.findByText("Reliability data unavailable")
     ).toBeInTheDocument();
 
-    expect(screen.getByText("monitoring-service"))
+    expect(screen.getAllByText("monitoring-service")[1])
       .toBeInTheDocument();
 
     await user.click(
@@ -238,10 +279,11 @@ describe("ServicesPage", () => {
 
     getMonitoredServices.mockResolvedValue(mockServices);
     mockSuccessfulReliability();
+    mockSuccessfulAggregation();
 
     render(<ServicesPage />);
 
-    await screen.findByText("monitoring-service");
+    await screen.findAllByText("monitoring-service");
 
     await user.type(
       screen.getByLabelText("Service name or URL"),

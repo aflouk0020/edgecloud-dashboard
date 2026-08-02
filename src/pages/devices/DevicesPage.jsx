@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
 import MonitoringFilterBar, {
   FilterSelect
@@ -10,7 +10,7 @@ import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
 import { PrimaryButton } from "../../components/ui/Buttons";
-
+import { getDeviceAggregation } from "../../services/metricAggregationService";
 import { getDevices } from "../../services/deviceService";
 
 function formatDate(value) {
@@ -27,8 +27,26 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function aggregationState(loading = false, error = false) {
+  return { loading, error };
+}
+
+function firstSummary(response) {
+  return response?.summaries?.[0] || null;
+}
+
+function metricValue(summary, key) {
+  return summary?.metrics?.[key];
+}
+
+function availabilityValue(summary, key) {
+  return summary?.availability?.[key];
+}
+
 export default function DevicesPage() {
   const [devices, setDevices] = useState([]);
+  const [aggregationByDevice, setAggregationByDevice] = useState({});
+  const [aggregationStateByDevice, setAggregationStateByDevice] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,6 +57,8 @@ export default function DevicesPage() {
     try {
       setLoading(true);
       setError("");
+      setAggregationByDevice({});
+      setAggregationStateByDevice({});
 
       const data = await getDevices();
       setDevices(Array.isArray(data) ? data : []);
@@ -48,6 +68,38 @@ export default function DevicesPage() {
       setLoading(false);
     }
   }
+
+  const loadAggregation = useCallback(async deviceId => {
+    setAggregationByDevice(previous => {
+      const next = { ...previous };
+      delete next[deviceId];
+      return next;
+    });
+
+    setAggregationStateByDevice(previous => ({
+      ...previous,
+      [deviceId]: aggregationState(true, false)
+    }));
+
+    try {
+      const aggregation = await getDeviceAggregation(deviceId);
+
+      setAggregationByDevice(previous => ({
+        ...previous,
+        [deviceId]: aggregation
+      }));
+
+      setAggregationStateByDevice(previous => ({
+        ...previous,
+        [deviceId]: aggregationState(false, false)
+      }));
+    } catch {
+      setAggregationStateByDevice(previous => ({
+        ...previous,
+        [deviceId]: aggregationState(false, true)
+      }));
+    }
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -119,6 +171,20 @@ export default function DevicesPage() {
     });
   }, [devices, searchQuery, statusFilter, typeFilter]);
 
+  const spotlightDevice = filteredDevices[0] || null;
+  const spotlightAggregation = spotlightDevice
+    ? aggregationByDevice[spotlightDevice.id]
+    : null;
+  const spotlightAggregationState = spotlightDevice
+    ? aggregationStateByDevice[spotlightDevice.id] || aggregationState(true, false)
+    : aggregationState(true, false);
+
+  React.useEffect(() => {
+    if (spotlightDevice) {
+      loadAggregation(spotlightDevice.id);
+    }
+  }, [loadAggregation, spotlightDevice?.id]);
+
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     statusFilter !== "ALL" ||
@@ -169,6 +235,85 @@ export default function DevicesPage() {
           variant="danger"
         />
       </div>
+
+      {!error && spotlightDevice && (
+        <section className="service-reliability-panel info">
+          <div className="service-reliability-header">
+            <div>
+              <span className="service-reliability-eyebrow">
+                Aggregation spotlight
+              </span>
+              <strong>{spotlightDevice.deviceName}</strong>
+            </div>
+            <span className="service-reliability-date">
+              Latest sample: {
+                firstSummary(spotlightAggregation)?.availability?.latestRecordedAt
+                  ? formatDate(firstSummary(spotlightAggregation).availability.latestRecordedAt)
+                  : "Unavailable"
+              }
+            </span>
+          </div>
+
+          {spotlightAggregationState.loading ? (
+            <LoadingState message="Loading device aggregation..." />
+          ) : spotlightAggregationState.error ? (
+            <ErrorState
+              title="Device aggregation unavailable"
+              message="The aggregation endpoint could not be loaded right now."
+            />
+          ) : spotlightAggregation?.emptyResult ? (
+            <EmptyState
+              title="No aggregation samples yet"
+              message="This device has no aggregation data in the selected scope."
+            />
+          ) : (
+            <div className="service-reliability-grid">
+              <div>
+                <span>Average CPU usage</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "averageValue") ?? "—"}
+                  <small>%</small>
+                </strong>
+              </div>
+              <div>
+                <span>Minimum CPU usage</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "minimumValue") ?? "—"}
+                  <small>%</small>
+                </strong>
+              </div>
+              <div>
+                <span>Maximum CPU usage</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "maximumValue") ?? "—"}
+                  <small>%</small>
+                </strong>
+              </div>
+              <div>
+                <span>Sample count</span>
+                <strong>
+                  {metricValue(firstSummary(spotlightAggregation), "sampleCount") ?? 0}
+                </strong>
+              </div>
+              <div>
+                <span>Availability</span>
+                <strong>
+                  {availabilityValue(firstSummary(spotlightAggregation), "availabilityPercentage") ?? 0}
+                  <small>%</small>
+                </strong>
+              </div>
+              <div>
+                <span>Latest heartbeat</span>
+                <strong>
+                  {availabilityValue(firstSummary(spotlightAggregation), "latestRecordedAt")
+                    ? formatDate(availabilityValue(firstSummary(spotlightAggregation), "latestRecordedAt"))
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {error && (
         <ErrorState

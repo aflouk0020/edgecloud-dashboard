@@ -129,6 +129,15 @@ export default function DashboardPage() {
         }
       />
 
+      <div className="overview-warning" role="status">
+        <strong>Project aggregation unavailable</strong>
+        <span>
+          Project-level aggregation is intentionally disabled until real project
+          ownership data is available in the monitoring service. Service and
+          device aggregation remain available below.
+        </span>
+      </div>
+
       {warning && (
         <div className="overview-warning" role="status">
           <strong>Partial analytics available</strong>
