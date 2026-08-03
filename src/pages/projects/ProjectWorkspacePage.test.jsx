@@ -1,6 +1,6 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProjectWorkspacePage from "./ProjectWorkspacePage";
@@ -9,6 +9,9 @@ import {
   getMonitoredServicesByIds
 } from "../../services/serviceMonitoringService";
 import { getDevicesByIds } from "../../services/deviceService";
+import {
+  getProjectHealthSummary
+} from "../../services/projectHealthSummaryService";
 import { AuthProvider } from "../../context/AuthContext";
 
 vi.mock("../../services/projectWorkspaceService", () => ({
@@ -36,6 +39,33 @@ vi.mock("../../services/serviceMonitoringService", () => ({
 
 vi.mock("../../services/deviceService", () => ({
   getDevicesByIds: vi.fn()
+}));
+
+vi.mock("../../services/projectHealthSummaryService", () => ({
+  getProjectHealthSummary: vi.fn(),
+  normalizeProjectHealthSummaryError: vi.fn(error => ({
+    status: error.status,
+    title:
+      error.status === 403
+        ? "Access denied"
+        : error.status === 422
+          ? "Archived project"
+          : error.status === 404
+            ? "Project not found"
+            : error.status === 401
+              ? "Authentication required"
+              : "Unable to load health summary",
+    message:
+      error.status === 403
+        ? "You do not have permission to view this project health summary."
+        : error.status === 422
+          ? "This project is archived. Health data is read-only."
+          : error.status === 404
+            ? "The requested project health summary could not be found."
+            : error.status === 401
+              ? "Please sign in again to view this project health summary."
+              : "Please try again once the Project Service is available."
+  }))
 }));
 
 function deferred() {
@@ -138,6 +168,20 @@ describe("ProjectWorkspacePage", () => {
 
   it("renders the workspace route and successful enrichment state", async () => {
     getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "HEALTHY",
+      totalRegisteredDevices: 2,
+      onlineDevices: 2,
+      offlineDevices: 0,
+      activeMonitoringServices: 2,
+      latestTelemetryReceivedAt: "2026-08-03T10:12:00Z",
+      monitoringStatus: "AVAILABLE",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "COMPLETE"
+    });
     getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
     getDevicesByIds.mockResolvedValue(deviceDetails);
 
@@ -150,6 +194,11 @@ describe("ProjectWorkspacePage", () => {
     expect(await screen.findByText("raspberry-pi-01")).toBeInTheDocument();
     expect(screen.getByText("Status: UP")).toBeInTheDocument();
     expect(await screen.findAllByText(/Heartbeat:/)).toHaveLength(2);
+    expect(screen.getByText("Overall Project Health")).toBeInTheDocument();
+    expect(screen.getByText("HEALTHY")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring Status")).toBeInTheDocument();
+    expect(screen.getByText("AVAILABLE")).toBeInTheDocument();
+    expect(screen.getByText("Last Telemetry Received")).toBeInTheDocument();
     expect(screen.getByLabelText("Project workspace navigation"))
       .toBeInTheDocument();
     expect(screen.getByText("Observability")).toBeInTheDocument();
@@ -186,6 +235,20 @@ describe("ProjectWorkspacePage", () => {
       deviceAssociationCount: 0,
       emptyWorkspace: true
     });
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "UNKNOWN",
+      totalRegisteredDevices: 0,
+      onlineDevices: 0,
+      offlineDevices: 0,
+      activeMonitoringServices: 0,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "UNAVAILABLE",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "NO_DATA"
+    });
 
     renderWorkspace();
 
@@ -194,6 +257,23 @@ describe("ProjectWorkspacePage", () => {
       .toBeInTheDocument();
     expect(getMonitoredServicesByIds).not.toHaveBeenCalled();
     expect(getDevicesByIds).not.toHaveBeenCalled();
+  });
+
+  it("shows health summary loading and refreshing states", async () => {
+    const deferredHealth = deferred();
+
+    getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockReturnValue(deferredHealth.promise);
+    getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
+    getDevicesByIds.mockResolvedValue(deviceDetails);
+
+    renderWorkspace();
+
+    expect(await screen.findByText("Fleet Observability")).toBeInTheDocument();
+    expect(await screen.findByText("Loading project health summary..."))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refreshing..." }))
+      .toBeDisabled();
   });
 
   it("shows an empty service section when no services are linked", async () => {
@@ -233,6 +313,20 @@ describe("ProjectWorkspacePage", () => {
       ...baseWorkspace,
       projectStatus: "ARCHIVED"
     });
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ARCHIVED",
+      overallHealth: "UNKNOWN",
+      totalRegisteredDevices: 2,
+      onlineDevices: 0,
+      offlineDevices: 0,
+      activeMonitoringServices: 0,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "UNAVAILABLE",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "NO_DATA"
+    });
     getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
     getDevicesByIds.mockResolvedValue(deviceDetails);
 
@@ -264,6 +358,20 @@ describe("ProjectWorkspacePage", () => {
 
   it("renders unavailable items without breaking the page", async () => {
     getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "DEGRADED",
+      totalRegisteredDevices: 2,
+      onlineDevices: 1,
+      offlineDevices: 1,
+      activeMonitoringServices: 1,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "PARTIAL",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "PARTIAL"
+    });
     getMonitoredServicesByIds.mockResolvedValue([
       serviceDetails[0],
       { serviceId: "service-b", service: null }
@@ -286,6 +394,18 @@ describe("ProjectWorkspacePage", () => {
       ...baseWorkspace,
       serviceIds: ["service-b", "service-a"],
       deviceIds: ["device-b"]
+    });
+    getProjectHealthSummary.mockResolvedValue({
+      ...baseWorkspace,
+      overallHealth: "UNKNOWN",
+      totalRegisteredDevices: 1,
+      onlineDevices: 0,
+      offlineDevices: 0,
+      activeMonitoringServices: 0,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "UNAVAILABLE",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "NO_DATA"
     });
     getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
     getDevicesByIds.mockResolvedValue(deviceDetails);
@@ -312,8 +432,132 @@ describe("ProjectWorkspacePage", () => {
       .toBeInTheDocument();
   });
 
+  it("shows unavailable telemetry fallback when timestamp is missing", async () => {
+    getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "UNKNOWN",
+      totalRegisteredDevices: 2,
+      onlineDevices: 1,
+      offlineDevices: 1,
+      activeMonitoringServices: 1,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "PARTIAL",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "PARTIAL"
+    });
+    getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
+    getDevicesByIds.mockResolvedValue(deviceDetails);
+
+    renderWorkspace();
+
+    expect(await screen.findByText("No telemetry timestamp available yet"))
+      .toBeInTheDocument();
+  });
+
+  it("refreshes the health summary manually", async () => {
+    getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary
+      .mockResolvedValueOnce({
+        ...baseWorkspace,
+        overallHealth: "UNKNOWN",
+        totalRegisteredDevices: 2,
+        onlineDevices: 1,
+        offlineDevices: 1,
+        activeMonitoringServices: 1,
+        latestTelemetryReceivedAt: null,
+        monitoringStatus: "PARTIAL",
+        generatedAt: "2026-08-03T10:12:00Z",
+        dataCompleteness: "PARTIAL"
+      })
+      .mockResolvedValueOnce({
+        ...baseWorkspace,
+        overallHealth: "HEALTHY",
+        totalRegisteredDevices: 2,
+        onlineDevices: 2,
+        offlineDevices: 0,
+        activeMonitoringServices: 2,
+        latestTelemetryReceivedAt: "2026-08-03T10:15:00Z",
+        monitoringStatus: "AVAILABLE",
+        generatedAt: "2026-08-03T10:15:00Z",
+        dataCompleteness: "COMPLETE"
+      })
+      .mockResolvedValueOnce({
+        ...baseWorkspace,
+        overallHealth: "HEALTHY",
+        totalRegisteredDevices: 2,
+        onlineDevices: 2,
+        offlineDevices: 0,
+        activeMonitoringServices: 2,
+        latestTelemetryReceivedAt: "2026-08-03T10:15:00Z",
+        monitoringStatus: "AVAILABLE",
+        generatedAt: "2026-08-03T10:15:00Z",
+        dataCompleteness: "COMPLETE"
+      });
+    getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
+    getDevicesByIds.mockResolvedValue(deviceDetails);
+
+    renderWorkspace();
+
+    expect(await screen.findByText("UNKNOWN")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh Health" }));
+    await waitFor(() => {
+      expect(getProjectHealthSummary).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText("HEALTHY")).toBeInTheDocument();
+  });
+
+  it("sets up automatic refresh cleanup without leaking requests", async () => {
+    getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      ...baseWorkspace,
+      overallHealth: "UNKNOWN",
+      totalRegisteredDevices: 2,
+      onlineDevices: 1,
+      offlineDevices: 1,
+      activeMonitoringServices: 1,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "PARTIAL",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "PARTIAL"
+    });
+    getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
+    getDevicesByIds.mockResolvedValue(deviceDetails);
+
+    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
+    const { unmount } = renderWorkspace();
+
+    expect(await screen.findByText("UNKNOWN")).toBeInTheDocument();
+    unmount();
+    expect(clearIntervalSpy).toHaveBeenCalled();
+  });
+
+  it("keeps health requests out until workspace access succeeds", () => {
+    getProjectWorkspace.mockReturnValue(new Promise(() => {}));
+
+    renderWorkspace();
+
+    expect(getProjectHealthSummary).not.toHaveBeenCalled();
+  });
+
   it("keeps partial-success states isolated per section", async () => {
     getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "DEGRADED",
+      totalRegisteredDevices: 2,
+      onlineDevices: 1,
+      offlineDevices: 1,
+      activeMonitoringServices: 1,
+      latestTelemetryReceivedAt: null,
+      monitoringStatus: "PARTIAL",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "PARTIAL"
+    });
     getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
     getDevicesByIds.mockRejectedValue(new Error("device lookup failed"));
 

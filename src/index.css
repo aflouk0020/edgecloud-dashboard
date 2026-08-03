@@ -2082,6 +2082,60 @@ input:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.project-workspace-health-panel {
+  margin-bottom: 20px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid #dbe2ea;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.06);
+}
+
+.project-workspace-health-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.project-workspace-health-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.project-workspace-health-header p {
+  margin: 8px 0 0;
+  color: #64748b;
+}
+
+.project-workspace-health-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-workspace-health-status-card {
+  display: grid;
+  gap: 12px;
+}
+
+.project-workspace-refresh-button {
+  border: 1px solid #cbd5e1;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.project-workspace-refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .project-identifier-card {
   padding: 20px;
 }
@@ -2142,7 +2196,15 @@ input:focus {
 
 @media (max-width: 900px) {
   .project-workspace-summary-grid,
-  .project-workspace-content-grid {
+  .project-workspace-content-grid,
+  .project-workspace-health-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .project-workspace-health-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
