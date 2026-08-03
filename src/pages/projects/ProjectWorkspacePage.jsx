@@ -26,12 +26,23 @@ const NAV_ITEMS = [
 const REFRESH_INTERVAL_MS = 60000;
 
 function WorkspaceNav() {
+  const { projectId } = useParams();
   return (
     <div className="project-workspace-nav" aria-label="Project workspace navigation">
       {NAV_ITEMS.map(item => (
-        <span key={item.path} className="project-workspace-nav-item">
-          {item.label}
-        </span>
+        item.path === "metrics" ? (
+          <Link
+            key={item.path}
+            className="project-workspace-nav-item"
+            to={`/projects/${projectId}/metrics`}
+          >
+            {item.label}
+          </Link>
+        ) : (
+          <span key={item.path} className="project-workspace-nav-item">
+            {item.label}
+          </span>
+        )
       ))}
       <Link className="project-workspace-nav-back" to="/dashboard">
         Back to dashboard
