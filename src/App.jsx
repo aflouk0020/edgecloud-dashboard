@@ -4,6 +4,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ServicesPage from "./pages/services/ServicesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
+import ProjectWorkspacePage from "./pages/projects/ProjectWorkspacePage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
 import AlertsPage from "./pages/alerts/AlertsPage";
 
@@ -59,6 +60,15 @@ function App() {
             <DashboardLayout>
               <TelemetryPage />
             </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId/workspace"
+        element={
+          <ProtectedRoute>
+            <ProjectWorkspacePage />
           </ProtectedRoute>
         }
       />
