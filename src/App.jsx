@@ -5,6 +5,7 @@ import DashboardPage from "./pages/dashboard/DashboardPage";
 import ServicesPage from "./pages/services/ServicesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import ProjectWorkspacePage from "./pages/projects/ProjectWorkspacePage";
+import ProjectHistoricalMetricsPage from "./pages/projects/ProjectHistoricalMetricsPage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
 import AlertsPage from "./pages/alerts/AlertsPage";
 
@@ -69,6 +70,15 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectWorkspacePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId/metrics"
+        element={
+          <ProtectedRoute>
+            <ProjectHistoricalMetricsPage />
           </ProtectedRoute>
         }
       />
