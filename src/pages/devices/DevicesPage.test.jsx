@@ -81,7 +81,7 @@ describe("DevicesPage", () => {
       .toBeInTheDocument();
     expect(await screen.findByText("Aggregation spotlight"))
       .toBeInTheDocument();
-    expect(screen.getByText("Average CPU usage")).toBeInTheDocument();
+    expect(screen.getByText("Latest sample: 14 Jul 2026, 10:10")).toBeInTheDocument();
     expect(screen.getAllByText("31.5")[0]).toBeInTheDocument();
 
     await user.selectOptions(

@@ -22,6 +22,10 @@ export async function apiRequest(endpoint, options = {}) {
     }
   );
 
+  if (options.responseType === "raw") {
+    return response;
+  }
+
   if (!response.ok) {
     throw new Error(
       `API request failed: ${response.status}`
