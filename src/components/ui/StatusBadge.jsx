@@ -1,6 +1,9 @@
-function StatusBadge({ children, variant = "" }) {
+function StatusBadge({ children, variant = "", ...props }) {
   return (
-    <span className={`ui-status-badge ${variant.toLowerCase()}`}>
+    <span
+      className={`ui-status-badge ${variant.toLowerCase()}`}
+      {...props}
+    >
       {children}
     </span>
   );
