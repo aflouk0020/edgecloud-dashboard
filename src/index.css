@@ -2398,6 +2398,204 @@ input:focus {
   color: #f8fafc;
 }
 
+.project-device-health-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 24px;
+}
+
+.project-device-health-context-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.project-device-health-context-card,
+.project-device-health-results,
+.project-device-health-banner {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.82));
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+}
+
+.project-device-health-context-card {
+  padding: 18px 20px;
+  text-align: left;
+}
+
+.project-device-health-context-card span {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.project-device-health-context-card strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.project-device-health-summary-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-device-health-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.project-device-health-toolbar label {
+  display: grid;
+  gap: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.project-device-health-toolbar select {
+  min-width: 180px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  padding: 12px 14px;
+}
+
+.project-device-health-refresh-button {
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #f97316, #fb923c);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.project-device-health-refresh-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.project-device-health-banner {
+  padding: 14px 16px;
+  color: #cbd5e1;
+}
+
+.project-device-health-results {
+  padding: 20px;
+}
+
+.project-device-health-results-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  color: #cbd5e1;
+}
+
+.project-device-health-responsive {
+  display: grid;
+  gap: 16px;
+}
+
+.project-device-health-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #f8fafc;
+}
+
+.project-device-health-table th,
+.project-device-health-table td {
+  padding: 14px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  vertical-align: top;
+}
+
+.project-device-health-table th {
+  color: #94a3b8;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-device-health-table td strong {
+  display: block;
+  color: #f8fafc;
+}
+
+.project-device-health-table tr.unavailable td {
+  color: #cbd5e1;
+}
+
+.project-device-health-card-list {
+  display: none;
+  gap: 14px;
+}
+
+.project-device-health-card {
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+}
+
+.project-device-health-card.unavailable {
+  border-style: dashed;
+}
+
+.project-device-health-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.project-device-health-card-header strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.project-device-health-card-header span {
+  color: #94a3b8;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.project-device-health-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-device-health-card-grid span {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.project-device-health-card-grid strong {
+  color: #f8fafc;
+}
+
 .project-metrics-page {
   width: min(1120px, 100%);
   margin: 0 auto;
@@ -2617,7 +2815,9 @@ input:focus {
   .project-workspace-content-grid,
   .project-workspace-health-grid,
   .project-service-health-context-grid,
-  .project-service-health-summary-grid {
+  .project-service-health-summary-grid,
+  .project-device-health-context-grid,
+  .project-device-health-summary-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -2643,6 +2843,18 @@ input:focus {
   }
 
   .project-service-health-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-device-health-table {
+    display: none;
+  }
+
+  .project-device-health-card-list {
+    display: grid;
+  }
+
+  .project-device-health-card-grid {
     grid-template-columns: 1fr;
   }
 

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 const NAV_ITEMS = [
   { label: "Observability", key: "workspace", route: "workspace" },
   { label: "Services", key: "services", route: "services" },
-  { label: "Devices", key: "devices", route: null },
+  { label: "Devices", key: "devices", route: "devices" },
   { label: "Metrics", key: "metrics", route: "metrics" }
 ];
 
