@@ -272,8 +272,8 @@ describe("ProjectWorkspacePage", () => {
     expect(await screen.findByText("Fleet Observability")).toBeInTheDocument();
     expect(await screen.findByText("Loading project health summary..."))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refreshing..." }))
-      .toBeDisabled();
+    expect(screen.getByRole("button", { name: "Refresh Health" }))
+      .toBeInTheDocument();
   });
 
   it("shows an empty service section when no services are linked", async () => {
@@ -414,11 +414,13 @@ describe("ProjectWorkspacePage", () => {
 
     await screen.findByText("Fleet Observability");
 
-    expect(getMonitoredServicesByIds).toHaveBeenCalledWith([
-      "service-b",
-      "service-a"
-    ]);
-    expect(getDevicesByIds).toHaveBeenCalledWith(["device-b"]);
+    await waitFor(() => {
+      expect(getMonitoredServicesByIds).toHaveBeenCalledWith([
+        "service-b",
+        "service-a"
+      ]);
+      expect(getDevicesByIds).toHaveBeenCalledWith(["device-b"]);
+    });
   });
 
   it("does not enrich before workspace access succeeds", () => {
@@ -526,12 +528,12 @@ describe("ProjectWorkspacePage", () => {
     getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
     getDevicesByIds.mockResolvedValue(deviceDetails);
 
-    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
     const { unmount } = renderWorkspace();
 
     expect(await screen.findByText("UNKNOWN")).toBeInTheDocument();
     unmount();
-    expect(clearIntervalSpy).toHaveBeenCalled();
+    expect(clearTimeoutSpy).toHaveBeenCalled();
   });
 
   it("keeps health requests out until workspace access succeeds", () => {

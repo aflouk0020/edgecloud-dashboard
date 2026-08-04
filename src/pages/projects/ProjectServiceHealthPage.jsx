@@ -1,21 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import { CONNECTION_STATE, useObservabilityPolling } from "../../hooks/useObservabilityPolling";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ObservabilityConnectionStatus from "../../components/observability/ObservabilityConnectionStatus";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
   getProjectServiceHealth,
   normalizeProjectServiceHealthError
 } from "../../services/projectServiceHealthService";
-
-const REFRESH_INTERVAL_MS = 60000;
 
 function formatDateTime(value) {
   if (!value) {
@@ -200,13 +200,8 @@ export default function ProjectServiceHealthPage() {
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState(null);
   const [healthSummary, setHealthSummary] = useState(null);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthRefreshing, setHealthRefreshing] = useState(false);
   const [healthError, setHealthError] = useState(null);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [sortDirection, setSortDirection] = useState("ASC");
-  const inFlightRef = useRef(false);
-  const mountedRef = useRef(true);
 
   useEffect(() => {
     let active = true;
@@ -216,8 +211,6 @@ export default function ProjectServiceHealthPage() {
     setWorkspace(null);
     setHealthSummary(null);
     setHealthError(null);
-    setHealthLoading(false);
-    setHealthRefreshing(false);
 
     getProjectWorkspace(projectId)
       .then(result => {
@@ -241,65 +234,27 @@ export default function ProjectServiceHealthPage() {
     };
   }, [projectId]);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!workspace) {
-      return undefined;
-    }
-
-    let active = true;
-
-    const loadHealth = async () => {
-      if (inFlightRef.current) {
-        return;
-      }
-
-      inFlightRef.current = true;
-      if (healthSummary) {
-        setHealthRefreshing(true);
-      } else {
-        setHealthLoading(true);
-      }
+  const loadHealth = useCallback(async () => {
+    try {
+      const result = await getProjectServiceHealth(projectId);
+      setHealthSummary(result);
       setHealthError(null);
+      return result;
+    } catch (error) {
+      const normalized = normalizeProjectServiceHealthError(error);
+      setHealthError(normalized);
+      throw normalized;
+    }
+  }, [projectId]);
 
-      try {
-        const result = await getProjectServiceHealth(projectId);
-
-        if (active && mountedRef.current) {
-          setHealthSummary(result);
-        }
-      } catch (error) {
-        if (active && mountedRef.current) {
-          setHealthError(normalizeProjectServiceHealthError(error));
-        }
-      } finally {
-        inFlightRef.current = false;
-        if (active && mountedRef.current) {
-          setHealthLoading(false);
-          setHealthRefreshing(false);
-        }
-      }
-    };
-
-    loadHealth();
-
-    const interval = window.setInterval(() => {
-      if (!inFlightRef.current && active && mountedRef.current) {
-        loadHealth();
-      }
-    }, REFRESH_INTERVAL_MS);
-
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [workspace, projectId, refreshTick]);
+  const {
+    connectionState,
+    lastSuccessfulRefreshAt,
+    refresh: refreshNow
+  } = useObservabilityPolling(loadHealth, {
+    enabled: Boolean(workspace),
+    immediate: Boolean(workspace)
+  });
 
   const services = useMemo(
     () => sortServices(Array.isArray(healthSummary?.services) ? healthSummary.services : [], sortDirection),
@@ -315,6 +270,16 @@ export default function ProjectServiceHealthPage() {
     dataCompleteness: "NO_DATA",
     generatedAt: null
   };
+
+  const isRefreshing = connectionState === CONNECTION_STATE.REFRESHING && Boolean(healthSummary);
+  const showInitialLoading = connectionState === CONNECTION_STATE.REFRESHING && !healthSummary;
+  const connectionWarning = connectionState === CONNECTION_STATE.REFRESHING
+    ? "Refreshing service health in the background. Existing data remains visible."
+    : connectionState === CONNECTION_STATE.DEGRADED
+      ? "A refresh failed, but the last successful service overview remains visible."
+      : connectionState === CONNECTION_STATE.DISCONNECTED
+        ? "Automatic service polling is paused until the connection recovers."
+        : "";
 
   if (workspaceLoading) {
     return (
@@ -340,11 +305,11 @@ export default function ProjectServiceHealthPage() {
   }
 
   const renderSummaryState = () => {
-    if (healthLoading && !healthSummary) {
+    if (showInitialLoading) {
       return <LoadingState message="Loading service health overview..." />;
     }
 
-    if (healthRefreshing && healthSummary) {
+    if (isRefreshing) {
       return (
         <>
           <div className="project-service-health-banner" role="status">
@@ -368,7 +333,9 @@ export default function ProjectServiceHealthPage() {
             <button
               type="button"
               className="project-service-health-refresh-button"
-              onClick={() => setRefreshTick(value => value + 1)}
+              onClick={() => {
+                void refreshNow().catch(() => {});
+              }}
             >
               Refresh Services
             </button>
@@ -416,12 +383,20 @@ export default function ProjectServiceHealthPage() {
           <button
             type="button"
             className="project-service-health-refresh-button"
-            onClick={() => setRefreshTick(value => value + 1)}
-            disabled={healthLoading || healthRefreshing}
+            onClick={() => {
+              void refreshNow().catch(() => {});
+            }}
+            disabled={isRefreshing}
           >
-            {healthLoading || healthRefreshing ? "Refreshing..." : "Refresh Services"}
+            {isRefreshing ? "Refreshing..." : "Refresh Services"}
           </button>
         </div>
+
+        <ObservabilityConnectionStatus
+          status={connectionState}
+          lastSuccessfulRefreshAt={lastSuccessfulRefreshAt}
+          warning={connectionWarning}
+        />
 
         <div className="project-service-health-banner" role="status">
           {summary.dataCompleteness === "PARTIAL"
@@ -451,7 +426,9 @@ export default function ProjectServiceHealthPage() {
                   <button
                     type="button"
                     className="project-service-health-refresh-button"
-                    onClick={() => setRefreshTick(value => value + 1)}
+                    onClick={() => {
+                      void refreshNow().catch(() => {});
+                    }}
                   >
                     Refresh Services
                   </button>

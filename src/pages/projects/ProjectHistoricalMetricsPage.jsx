@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import { CONNECTION_STATE, useObservabilityPolling } from "../../hooks/useObservabilityPolling";
+import ObservabilityConnectionStatus from "../../components/observability/ObservabilityConnectionStatus";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatusBadge from "../../components/ui/StatusBadge";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
+import { observabilityRefreshConfig } from "../../config/observabilityRefreshConfig";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
   getProjectHistoricalMetrics,
@@ -126,7 +129,6 @@ export default function ProjectHistoricalMetricsPage() {
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState(null);
   const [history, setHistory] = useState(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [validationError, setValidationError] = useState("");
   const [filters, setFilters] = useState(() => {
@@ -139,7 +141,6 @@ export default function ProjectHistoricalMetricsPage() {
       sortDirection: "DESC"
     };
   });
-  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -175,66 +176,52 @@ export default function ProjectHistoricalMetricsPage() {
     return `${fromValue} → ${toValue}`;
   }, [filters.from, filters.to]);
 
+  const rangeError = useMemo(() => validateRange(filters.from, filters.to), [filters.from, filters.to]);
+
   useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-
-    if (!workspace) {
-      return () => {
-        active = false;
-      };
-    }
-
-    const rangeError = validateRange(filters.from, filters.to);
     setValidationError(rangeError);
+  }, [rangeError]);
 
-    if (rangeError) {
-      setHistory(null);
-      setHistoryError(null);
-      setHistoryLoading(false);
-      return () => {
-        active = false;
-      };
+  const fetchHistory = useCallback(async () => {
+    const response = await getProjectHistoricalMetrics(
+      projectId,
+      {
+        from: toIsoDateTime(filters.from),
+        to: toIsoDateTime(filters.to),
+        page: filters.page,
+        size: filters.size,
+        sortDirection: filters.sortDirection
+      }
+    );
+
+    setHistory(response);
+    setHistoryError(null);
+    return response;
+  }, [filters.from, filters.page, filters.size, filters.sortDirection, filters.to, projectId]);
+
+  const pollingEnabled = Boolean(workspace && !rangeError);
+  const {
+    connectionState,
+    lastSuccessfulRefreshAt,
+    refresh: refreshNow
+  } = useObservabilityPolling(fetchHistory, {
+    enabled: pollingEnabled,
+    immediate: false,
+    intervalMs: observabilityRefreshConfig.historicalRefreshIntervalMs,
+    autoRefreshEnabled: filters.page === 0
+  });
+
+  useEffect(() => {
+    if (!workspace || rangeError) {
+      return undefined;
     }
 
-    const fetchHistory = async () => {
-      setHistoryLoading(true);
-      setHistoryError(null);
+    void refreshNow().catch(error => {
+      setHistoryError(normalizeProjectHistoricalMetricsError(error));
+    });
 
-      try {
-        const response = await getProjectHistoricalMetrics(projectId, {
-          from: toIsoDateTime(filters.from),
-          to: toIsoDateTime(filters.to),
-          page: filters.page,
-          size: filters.size,
-          sortDirection: filters.sortDirection
-        }, { signal: controller.signal });
-
-        if (active) {
-          setHistory(response);
-        }
-      } catch (error) {
-        if (error?.name === "AbortError") {
-          return;
-        }
-        if (active) {
-          setHistoryError(normalizeProjectHistoricalMetricsError(error));
-          setHistory(null);
-        }
-      } finally {
-        if (active) {
-          setHistoryLoading(false);
-        }
-      }
-    };
-
-    fetchHistory();
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [workspace, projectId, filters, refreshKey]);
+    return undefined;
+  }, [filters.from, filters.page, filters.size, filters.sortDirection, filters.to, rangeError, refreshNow, workspace]);
 
   const updateFilters = updates => {
     setFilters(current => ({
@@ -243,6 +230,16 @@ export default function ProjectHistoricalMetricsPage() {
       page: updates.page ?? 0
     }));
   };
+
+  const isRefreshing = connectionState === CONNECTION_STATE.REFRESHING && Boolean(history);
+  const showInitialLoading = connectionState === CONNECTION_STATE.REFRESHING && !history;
+  const connectionWarning = connectionState === CONNECTION_STATE.REFRESHING
+    ? "Refreshing historical metrics in the background. Existing data remains visible."
+    : connectionState === CONNECTION_STATE.DEGRADED
+      ? "Connection degraded. A refresh failed, but the last successful historical data remains visible."
+      : connectionState === CONNECTION_STATE.DISCONNECTED
+        ? "Automatic historical polling is paused until the connection recovers."
+        : "";
 
   if (workspaceLoading) {
     return (
@@ -276,7 +273,6 @@ export default function ProjectHistoricalMetricsPage() {
       </DashboardLayout>
     );
   }
-
   const dataState = history?.dataState || "NO_DATA";
   const pagination = history?.pagination || {
     currentPage: filters.page,
@@ -363,10 +359,14 @@ export default function ProjectHistoricalMetricsPage() {
           <button
             type="button"
             className="project-metrics-refresh-button"
-            onClick={() => setRefreshKey(value => value + 1)}
-            disabled={historyLoading}
+            onClick={() => {
+              void refreshNow().catch(error => {
+                setHistoryError(normalizeProjectHistoricalMetricsError(error));
+              });
+            }}
+            disabled={isRefreshing}
           >
-            {historyLoading ? "Refreshing..." : "Refresh history"}
+            {isRefreshing ? "Refreshing..." : "Refresh history"}
           </button>
         </section>
 
@@ -374,11 +374,11 @@ export default function ProjectHistoricalMetricsPage() {
           <ErrorState title="Invalid date range" message={validationError} />
         ) : null}
 
-        {historyLoading && !history ? (
+        {showInitialLoading ? (
           <LoadingState message="Loading historical metrics..." />
         ) : null}
 
-        {historyLoading && history ? (
+        {isRefreshing ? (
           <div className="project-metrics-background-loading" role="status">
             Updating historical metrics...
           </div>
@@ -393,6 +393,12 @@ export default function ProjectHistoricalMetricsPage() {
             Some historical data could not be resolved. The available records are shown below.
           </div>
         ) : null}
+
+        <ObservabilityConnectionStatus
+          status={connectionState}
+          lastSuccessfulRefreshAt={lastSuccessfulRefreshAt}
+          warning={connectionWarning}
+        />
 
         {isUnavailable ? (
           <div className="project-metrics-banner unavailable" role="status">
@@ -422,7 +428,7 @@ export default function ProjectHistoricalMetricsPage() {
               <button
                 type="button"
                 onClick={() => updateFilters({ page: Math.max((pagination.currentPage || 0) - 1, 0) })}
-                disabled={pagination.currentPage <= 0 || historyLoading}
+                disabled={pagination.currentPage <= 0 || isRefreshing}
               >
                 Previous
               </button>
@@ -432,7 +438,7 @@ export default function ProjectHistoricalMetricsPage() {
               <button
                 type="button"
                 onClick={() => updateFilters({ page: (pagination.currentPage || 0) + 1 })}
-                disabled={pagination.currentPage + 1 >= (pagination.totalPages || 0) || historyLoading}
+                disabled={pagination.currentPage + 1 >= (pagination.totalPages || 0) || isRefreshing}
               >
                 Next
               </button>
