@@ -1,21 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import { CONNECTION_STATE, useObservabilityPolling } from "../../hooks/useObservabilityPolling";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ObservabilityConnectionStatus from "../../components/observability/ObservabilityConnectionStatus";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
   getProjectDeviceHealth,
   normalizeProjectDeviceHealthError
 } from "../../services/projectDeviceHealthService";
-
-const REFRESH_INTERVAL_MS = 60000;
 
 function formatDateTime(value) {
   if (!value) {
@@ -216,13 +216,8 @@ export default function ProjectDeviceHealthPage() {
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState(null);
   const [deviceSummary, setDeviceSummary] = useState(null);
-  const [deviceLoading, setDeviceLoading] = useState(false);
-  const [deviceRefreshing, setDeviceRefreshing] = useState(false);
   const [deviceError, setDeviceError] = useState(null);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [sortDirection, setSortDirection] = useState("ASC");
-  const inFlightRef = useRef(false);
-  const mountedRef = useRef(true);
 
   useEffect(() => {
     let active = true;
@@ -232,8 +227,6 @@ export default function ProjectDeviceHealthPage() {
     setWorkspace(null);
     setDeviceSummary(null);
     setDeviceError(null);
-    setDeviceLoading(false);
-    setDeviceRefreshing(false);
 
     getProjectWorkspace(projectId)
       .then(result => {
@@ -257,65 +250,27 @@ export default function ProjectDeviceHealthPage() {
     };
   }, [projectId]);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!workspace) {
-      return undefined;
-    }
-
-    let active = true;
-
-    const loadDeviceHealth = async () => {
-      if (inFlightRef.current) {
-        return;
-      }
-
-      inFlightRef.current = true;
-      if (deviceSummary) {
-        setDeviceRefreshing(true);
-      } else {
-        setDeviceLoading(true);
-      }
+  const loadDeviceHealth = useCallback(async () => {
+    try {
+      const result = await getProjectDeviceHealth(projectId);
+      setDeviceSummary(result);
       setDeviceError(null);
+      return result;
+    } catch (error) {
+      const normalized = normalizeProjectDeviceHealthError(error);
+      setDeviceError(normalized);
+      throw normalized;
+    }
+  }, [projectId]);
 
-      try {
-        const result = await getProjectDeviceHealth(projectId);
-
-        if (active && mountedRef.current) {
-          setDeviceSummary(result);
-        }
-      } catch (error) {
-        if (active && mountedRef.current) {
-          setDeviceError(normalizeProjectDeviceHealthError(error));
-        }
-      } finally {
-        inFlightRef.current = false;
-        if (active && mountedRef.current) {
-          setDeviceLoading(false);
-          setDeviceRefreshing(false);
-        }
-      }
-    };
-
-    loadDeviceHealth();
-
-    const interval = window.setInterval(() => {
-      if (!inFlightRef.current && active && mountedRef.current) {
-        loadDeviceHealth();
-      }
-    }, REFRESH_INTERVAL_MS);
-
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [workspace, projectId, refreshTick]);
+  const {
+    connectionState,
+    lastSuccessfulRefreshAt,
+    refresh: refreshNow
+  } = useObservabilityPolling(loadDeviceHealth, {
+    enabled: Boolean(workspace),
+    immediate: Boolean(workspace)
+  });
 
   const devices = useMemo(
     () => sortDevices(Array.isArray(deviceSummary?.devices) ? deviceSummary.devices : [], sortDirection),
@@ -333,6 +288,16 @@ export default function ProjectDeviceHealthPage() {
     generatedAt: null,
     devices: []
   };
+
+  const isRefreshing = connectionState === CONNECTION_STATE.REFRESHING && Boolean(deviceSummary);
+  const showInitialLoading = connectionState === CONNECTION_STATE.REFRESHING && !deviceSummary;
+  const connectionWarning = connectionState === CONNECTION_STATE.REFRESHING
+    ? "Refreshing device health in the background. Existing data remains visible."
+    : connectionState === CONNECTION_STATE.DEGRADED
+      ? "A refresh failed, but the last successful device overview remains visible."
+      : connectionState === CONNECTION_STATE.DISCONNECTED
+        ? "Automatic device polling is paused until the connection recovers."
+        : "";
 
   if (workspaceLoading) {
     return (
@@ -358,6 +323,10 @@ export default function ProjectDeviceHealthPage() {
   }
 
   const renderSummaryContent = () => {
+    if (showInitialLoading) {
+      return <LoadingState message="Loading device health overview..." />;
+    }
+
     if (deviceError && !deviceSummary) {
       return (
         <ErrorState
@@ -367,7 +336,9 @@ export default function ProjectDeviceHealthPage() {
             <button
               type="button"
               className="project-device-health-refresh-button"
-              onClick={() => setRefreshTick(value => value + 1)}
+              onClick={() => {
+                void refreshNow().catch(() => {});
+              }}
             >
               Refresh Devices
             </button>
@@ -415,12 +386,20 @@ export default function ProjectDeviceHealthPage() {
           <button
             type="button"
             className="project-device-health-refresh-button"
-            onClick={() => setRefreshTick(value => value + 1)}
-            disabled={deviceLoading || deviceRefreshing}
+            onClick={() => {
+              void refreshNow().catch(() => {});
+            }}
+            disabled={isRefreshing}
           >
-            {deviceLoading || deviceRefreshing ? "Refreshing..." : "Refresh Devices"}
+            {isRefreshing ? "Refreshing..." : "Refresh Devices"}
           </button>
         </div>
+
+        <ObservabilityConnectionStatus
+          status={connectionState}
+          lastSuccessfulRefreshAt={lastSuccessfulRefreshAt}
+          warning={connectionWarning}
+        />
 
         <div className="project-device-health-banner" role="status">
           {summary.dataCompleteness === "PARTIAL"
@@ -450,7 +429,9 @@ export default function ProjectDeviceHealthPage() {
                   <button
                     type="button"
                     className="project-device-health-refresh-button"
-                    onClick={() => setRefreshTick(value => value + 1)}
+                    onClick={() => {
+                      void refreshNow().catch(() => {});
+                    }}
                   >
                     Refresh Devices
                   </button>
@@ -510,11 +491,7 @@ export default function ProjectDeviceHealthPage() {
           </article>
         </div>
 
-        {deviceLoading && !deviceSummary ? (
-          <LoadingState message="Loading device health overview..." />
-        ) : (
-          renderSummaryContent()
-        )}
+        {renderSummaryContent()}
       </section>
     </DashboardLayout>
   );

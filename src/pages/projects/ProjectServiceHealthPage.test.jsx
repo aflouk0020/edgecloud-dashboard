@@ -338,7 +338,7 @@ describe("ProjectServiceHealthPage", () => {
   });
 
   it("refreshes manually and cleans up the automatic refresh interval", async () => {
-    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
 
     getProjectWorkspace.mockResolvedValue(workspace());
     getProjectServiceHealth
@@ -358,8 +358,8 @@ describe("ProjectServiceHealthPage", () => {
     await waitFor(() => expect(screen.getAllByText(/Generated at/).length).toBeGreaterThan(0));
 
     unmount();
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    clearIntervalSpy.mockRestore();
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
   });
 
   it("does not schedule duplicate refresh requests while one is in flight", async () => {
@@ -377,7 +377,7 @@ describe("ProjectServiceHealthPage", () => {
     fireEvent.click(refreshButton);
     fireEvent.click(refreshButton);
 
-    expect(getProjectServiceHealth).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(getProjectServiceHealth).toHaveBeenCalledTimes(2));
     refreshDeferred.resolve(healthSummary());
     await waitFor(() => expect(screen.getAllByText(/Generated at/).length).toBeGreaterThan(0));
   });

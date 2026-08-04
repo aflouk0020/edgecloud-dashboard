@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import { CONNECTION_STATE, useObservabilityPolling } from "../../hooks/useObservabilityPolling";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ObservabilityConnectionStatus from "../../components/observability/ObservabilityConnectionStatus";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
 import { getDevicesByIds } from "../../services/deviceService";
 import {
@@ -16,8 +18,6 @@ import {
 } from "../../services/projectHealthSummaryService";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import { getMonitoredServicesByIds } from "../../services/serviceMonitoringService";
-
-const REFRESH_INTERVAL_MS = 60000;
 
 function ResourceSection({
   title,
@@ -74,10 +74,7 @@ export default function ProjectWorkspacePage() {
   const [error, setError] = useState(null);
 
   const [healthSummary, setHealthSummary] = useState(null);
-  const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState(null);
-  const [healthRefreshKey, setHealthRefreshKey] = useState(0);
-  const healthRequestInFlight = useRef(false);
 
   const [serviceDetails, setServiceDetails] = useState([]);
   const [deviceDetails, setDeviceDetails] = useState([]);
@@ -94,7 +91,6 @@ export default function ProjectWorkspacePage() {
     setWorkspace(null);
     setHealthSummary(null);
     setHealthError(null);
-    setHealthLoading(false);
     setServiceDetails([]);
     setDeviceDetails([]);
     setServiceLoading(false);
@@ -123,56 +119,6 @@ export default function ProjectWorkspacePage() {
       active = false;
     };
   }, [projectId]);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!workspace) {
-      return () => {
-        active = false;
-      };
-    }
-
-    const loadHealthSummary = async () => {
-      if (healthRequestInFlight.current) {
-        return;
-      }
-
-      healthRequestInFlight.current = true;
-      setHealthLoading(true);
-      setHealthError(null);
-
-      try {
-        const result = await getProjectHealthSummary(projectId);
-        if (active) {
-          setHealthSummary(result);
-        }
-      } catch (err) {
-        if (active) {
-          setHealthError(normalizeProjectHealthSummaryError(err));
-          setHealthSummary(null);
-        }
-      } finally {
-        healthRequestInFlight.current = false;
-        if (active) {
-          setHealthLoading(false);
-        }
-      }
-    };
-
-    loadHealthSummary();
-
-    const interval = window.setInterval(() => {
-      if (!healthRequestInFlight.current && active) {
-        loadHealthSummary();
-      }
-    }, REFRESH_INTERVAL_MS);
-
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [workspace, projectId, healthRefreshKey]);
 
   useEffect(() => {
     let active = true;
@@ -289,6 +235,28 @@ export default function ProjectWorkspacePage() {
     };
   }, [workspace]);
 
+  const loadHealthSummary = useCallback(async () => {
+    try {
+      const result = await getProjectHealthSummary(projectId);
+      setHealthSummary(result);
+      setHealthError(null);
+      return result;
+    } catch (err) {
+      const normalized = normalizeProjectHealthSummaryError(err);
+      setHealthError(normalized);
+      throw normalized;
+    }
+  }, [projectId]);
+
+  const {
+    connectionState: healthConnectionState,
+    lastSuccessfulRefreshAt: healthLastSuccessfulRefreshAt,
+    refresh: refreshHealthSummary
+  } = useObservabilityPolling(loadHealthSummary, {
+    enabled: Boolean(workspace),
+    immediate: Boolean(workspace)
+  });
+
   const serviceIds = useMemo(() => workspace?.serviceIds || [], [workspace]);
   const deviceIds = useMemo(() => workspace?.deviceIds || [], [workspace]);
 
@@ -303,6 +271,15 @@ export default function ProjectWorkspacePage() {
   const lastTelemetry = healthSummary?.latestTelemetryReceivedAt
     ? new Date(healthSummary.latestTelemetryReceivedAt).toLocaleString("en-IE")
     : "No telemetry timestamp available yet";
+  const isHealthRefreshing = healthConnectionState === CONNECTION_STATE.REFRESHING && Boolean(healthSummary);
+  const showHealthInitialLoading = healthConnectionState === CONNECTION_STATE.REFRESHING && !healthSummary;
+  const healthConnectionWarning = healthConnectionState === CONNECTION_STATE.REFRESHING
+    ? "Refreshing the project health summary in the background. Existing data remains visible."
+    : healthConnectionState === CONNECTION_STATE.DEGRADED
+      ? "A refresh failed, but the last successful project health summary remains visible."
+      : healthConnectionState === CONNECTION_STATE.DISCONNECTED
+        ? "Automatic project health polling is paused until the connection recovers."
+        : "";
 
   const healthCards = [
     {
@@ -334,7 +311,7 @@ export default function ProjectWorkspacePage() {
   ];
 
   const renderHealthPanel = () => {
-    if (healthLoading && !healthSummary) {
+    if (showHealthInitialLoading) {
       return <LoadingState message="Loading project health summary..." />;
     }
 
@@ -347,7 +324,9 @@ export default function ProjectWorkspacePage() {
             <button
               type="button"
               className="project-workspace-refresh-button"
-              onClick={() => setHealthRefreshKey(value => value + 1)}
+              onClick={() => {
+                void refreshHealthSummary().catch(() => {});
+              }}
             >
               Refresh Health
             </button>
@@ -358,6 +337,12 @@ export default function ProjectWorkspacePage() {
 
     return (
       <>
+        <ObservabilityConnectionStatus
+          status={healthConnectionState}
+          lastSuccessfulRefreshAt={healthLastSuccessfulRefreshAt}
+          warning={healthConnectionWarning}
+        />
+
         <div className="project-workspace-health-grid">
           {healthCards.map(card => (
             <StatCard
@@ -464,10 +449,12 @@ export default function ProjectWorkspacePage() {
             <button
               type="button"
               className="project-workspace-refresh-button"
-              onClick={() => setHealthRefreshKey(value => value + 1)}
-              disabled={healthLoading}
+              onClick={() => {
+                void refreshHealthSummary().catch(() => {});
+              }}
+              disabled={isHealthRefreshing}
             >
-              {healthLoading ? "Refreshing..." : "Refresh Health"}
+              {isHealthRefreshing ? "Refreshing..." : "Refresh Health"}
             </button>
           </div>
 

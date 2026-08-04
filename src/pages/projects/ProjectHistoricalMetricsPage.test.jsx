@@ -1,10 +1,12 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProjectHistoricalMetricsPage from "./ProjectHistoricalMetricsPage";
+import { observabilityRefreshConfig } from "../../config/observabilityRefreshConfig";
 import { AuthProvider } from "../../context/AuthContext";
+import { CONNECTION_STATE, useObservabilityPolling } from "../../hooks/useObservabilityPolling";
 import { getProjectWorkspace } from "../../services/projectWorkspaceService";
 import { getProjectHistoricalMetrics } from "../../services/projectHistoricalMetricsService";
 
@@ -57,6 +59,59 @@ vi.mock("../../services/projectHistoricalMetricsService", () => ({
                 : "Please try again once the Project Service is available."
   }))
 }));
+
+const pollingCalls = [];
+let refreshSpy;
+let pollingStateControls = null;
+
+vi.mock("../../hooks/useObservabilityPolling", async () => {
+  const React = await import("react");
+  const actual = await vi.importActual("../../hooks/useObservabilityPolling");
+
+  return {
+    ...actual,
+    useObservabilityPolling: vi.fn((fetcher, options) => {
+      const [connectionState, setConnectionState] = React.useState(CONNECTION_STATE.REFRESHING);
+      const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = React.useState("2026-08-03T12:10:00Z");
+      const [lastError, setLastError] = React.useState(null);
+
+      React.useEffect(() => {
+        pollingCalls.push(options);
+        pollingStateControls = {
+          setConnectionState,
+          setLastSuccessfulRefreshAt,
+          setLastError
+        };
+      }, [options]);
+
+      const refresh = React.useCallback(async () => {
+        refreshSpy?.();
+        setConnectionState(CONNECTION_STATE.REFRESHING);
+
+        try {
+          const result = await fetcher();
+          setLastError(null);
+          setLastSuccessfulRefreshAt(new Date().toISOString());
+          setConnectionState(CONNECTION_STATE.CONNECTED);
+          return result;
+        } catch (error) {
+          setLastError(error);
+          const status = error?.status || 0;
+          setConnectionState(status === 401 || status === 403 ? CONNECTION_STATE.DISCONNECTED : CONNECTION_STATE.DEGRADED);
+          throw error;
+        }
+      }, [fetcher]);
+
+      return {
+        connectionState,
+        lastSuccessfulRefreshAt,
+        lastError,
+        failureCount: 0,
+        refresh,
+      };
+    })
+  };
+});
 
 function renderPage(route = "/projects/project-1/metrics") {
   return render(
@@ -134,15 +189,25 @@ function historyResponse(overrides = {}) {
   };
 }
 
+function setVisibilityState(value) {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    get: () => value
+  });
+}
+
 describe("ProjectHistoricalMetricsPage", () => {
   beforeEach(() => {
     localStorage.setItem("token", "metrics-token");
     localStorage.setItem("role", "PROJECT_ADMIN");
     vi.clearAllMocks();
+    pollingCalls.length = 0;
+    refreshSpy = vi.fn();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    setVisibilityState("visible");
   });
 
   it("renders the route and the selected project context", async () => {
@@ -183,7 +248,15 @@ describe("ProjectHistoricalMetricsPage", () => {
         size: 25,
         sortDirection: "DESC"
       }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+    expect(useObservabilityPolling).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        enabled: true,
+        immediate: false,
+        intervalMs: observabilityRefreshConfig.historicalRefreshIntervalMs,
+        autoRefreshEnabled: true
+      })
     );
   });
 
@@ -213,23 +286,28 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Fleet Observability" }))
       .toBeInTheDocument();
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(1);
+    });
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01T12:00" } });
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(2);
+    });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-03T12:00" } });
-
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(3);
+    });
+    expect(screen.getByLabelText("From").value).toBe("2026-08-01T12:00");
+    expect(screen.getByLabelText("To").value).toBe("2026-08-03T12:00");
     const expectedFrom = new Date("2026-08-01T12:00").toISOString();
     const expectedTo = new Date("2026-08-03T12:00").toISOString();
-
-    await waitFor(() => {
-      expect(getProjectHistoricalMetrics).toHaveBeenLastCalledWith(
-        "project-1",
-        expect.objectContaining({
-          from: expectedFrom,
-          to: expectedTo,
-          page: 0
-        }),
-        expect.any(Object)
-      );
-    });
+    expect(getProjectHistoricalMetrics.mock.calls.at(-1)[1]).toEqual(
+      expect.objectContaining({
+        from: expectedFrom,
+        to: expectedTo,
+        page: 0
+      })
+    );
   });
 
   it("rejects reversed and excessive ranges before requesting", async () => {
@@ -259,15 +337,105 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Fleet Observability" }))
       .toBeInTheDocument();
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(1);
+    });
     fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "ASC" } });
 
     await waitFor(() => {
       expect(getProjectHistoricalMetrics).toHaveBeenLastCalledWith(
         "project-1",
-        expect.objectContaining({ sortDirection: "ASC" }),
-        expect.any(Object)
+        expect.objectContaining({ sortDirection: "ASC" })
       );
     });
+  });
+
+  it("migrates to the shared historical polling hook with the configured interval", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Fleet Observability" });
+
+    expect(useObservabilityPolling).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        enabled: true,
+        immediate: false,
+        intervalMs: observabilityRefreshConfig.historicalRefreshIntervalMs,
+        autoRefreshEnabled: true
+      })
+    );
+  });
+
+  it("disables automatic polling when page 1+ is selected but keeps manual refresh available", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics
+      .mockResolvedValueOnce(historyResponse({
+        pagination: { currentPage: 0, pageSize: 25, totalElements: 30, totalPages: 2, sortDirection: "DESC" }
+      }))
+      .mockResolvedValueOnce(historyResponse({
+        pagination: { currentPage: 1, pageSize: 25, totalElements: 30, totalPages: 2, sortDirection: "DESC" }
+      }));
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getAllByText((content, element) => element?.textContent === "Page 1 of 2").length)
+        .toBeGreaterThan(0);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    });
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenLastCalledWith(
+        "project-1",
+        expect.objectContaining({ page: 1 })
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
+    });
+    await waitFor(() => {
+      expect(refreshSpy).toHaveBeenCalled();
+    });
+
+    const latestCall = useObservabilityPolling.mock.calls.at(-1)?.[1];
+    expect(latestCall).toEqual(expect.objectContaining({ autoRefreshEnabled: false }));
+  });
+
+  it("preserves filters, pagination and sorting when controls change", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Fleet Observability" });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "ASC" } });
+      fireEvent.change(screen.getByLabelText("Page size"), { target: { value: "50" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01T12:00" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-03T12:00" } });
+    });
+
+    expect(screen.getByLabelText("Sort").value).toBe("ASC");
+    expect(screen.getByLabelText("Page size").value).toBe("50");
+    expect(screen.getByLabelText("From").value).toBe("2026-08-01T12:00");
+    expect(screen.getByLabelText("To").value).toBe("2026-08-03T12:00");
+  });
+
+  it("shows partial banner without breaking the page", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse({
+      dataState: "PARTIAL"
+    }));
+
+    renderPage();
+
+    expect(await screen.findByText("Some historical data could not be resolved. The available records are shown below."))
+      .toBeInTheDocument();
   });
 
   it("paginates forward and backward and resets page size changes", async () => {
@@ -285,13 +453,19 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     renderPage();
 
-    expect((await screen.findAllByText("Page 1 of 2")).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(
+        screen.getAllByText((content, element) => element?.textContent === "Page 1 of 2")
+      ).not.toHaveLength(0);
+    });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => {
       expect(getProjectHistoricalMetrics).toHaveBeenLastCalledWith(
         "project-1",
-        expect.objectContaining({ page: 1 }),
-        expect.any(Object)
+        expect.objectContaining({ page: 1 })
       );
     });
 
@@ -299,8 +473,7 @@ describe("ProjectHistoricalMetricsPage", () => {
     await waitFor(() => {
       expect(getProjectHistoricalMetrics).toHaveBeenLastCalledWith(
         "project-1",
-        expect.objectContaining({ page: 0, size: 10 }),
-        expect.any(Object)
+        expect.objectContaining({ page: 0, size: 10 })
       );
     });
   });
@@ -319,11 +492,9 @@ describe("ProjectHistoricalMetricsPage", () => {
     expect(screen.getByText("No historical records found")).toBeInTheDocument();
   });
 
-  it("shows partial and unavailable banners without breaking the page", async () => {
+  it("shows unavailable banner without breaking the page", async () => {
     getProjectWorkspace.mockResolvedValue(workspace());
     getProjectHistoricalMetrics.mockResolvedValueOnce(historyResponse({
-      dataState: "PARTIAL"
-    })).mockResolvedValueOnce(historyResponse({
       dataState: "UNAVAILABLE",
       records: [],
       pagination: { currentPage: 0, pageSize: 25, totalElements: 0, totalPages: 0, sortDirection: "DESC" }
@@ -331,9 +502,10 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Some historical data could not be resolved. The available records are shown below."
-    );
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByText("Historical data is temporarily unavailable for this selection.")).toBeInTheDocument();
   });
 
   it("shows error and unauthorised states from the secure backend", async () => {
@@ -365,5 +537,39 @@ describe("ProjectHistoricalMetricsPage", () => {
     expect(screen.getByLabelText("To")).toBeInTheDocument();
     expect(screen.getByLabelText("Sort")).toBeInTheDocument();
     expect(screen.getByLabelText("Page size")).toBeInTheDocument();
+  });
+
+  it("surfaces connection degraded and recovery states through the shared status component", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics
+      .mockResolvedValueOnce(historyResponse())
+      .mockRejectedValueOnce({ status: 500 })
+      .mockResolvedValueOnce(historyResponse({
+        generatedAt: "2026-08-03T12:03:00Z"
+      }));
+
+    renderPage();
+
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      pollingStateControls.setConnectionState(CONNECTION_STATE.DEGRADED);
+      pollingStateControls.setLastError({ status: 500 });
+      await Promise.resolve();
+    });
+    expect(screen.getByLabelText("Observability connection status Degraded")).toBeInTheDocument();
+    expect(screen.getByText("Connection degraded. A refresh failed, but the last successful historical data remains visible."))
+      .toBeInTheDocument();
+    await act(async () => {
+      pollingStateControls.setConnectionState(CONNECTION_STATE.CONNECTED);
+      pollingStateControls.setLastError(null);
+      pollingStateControls.setLastSuccessfulRefreshAt("2026-08-03T12:03:00Z");
+      fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
   });
 });
