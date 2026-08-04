@@ -9,6 +9,7 @@ import { AuthProvider } from "../../context/AuthContext";
 import { CONNECTION_STATE, useObservabilityPolling } from "../../hooks/useObservabilityPolling";
 import { getProjectWorkspace } from "../../services/projectWorkspaceService";
 import { getProjectHistoricalMetrics } from "../../services/projectHistoricalMetricsService";
+import { exportProjectMetrics, normalizeProjectMetricsExportError } from "../../services/projectMetricsExportService";
 
 vi.mock("../../services/projectWorkspaceService", () => ({
   getProjectWorkspace: vi.fn(),
@@ -57,6 +58,41 @@ vi.mock("../../services/projectHistoricalMetricsService", () => ({
               : error.status === 400
                 ? "Please adjust the selected date range and try again."
                 : "Please try again once the Project Service is available."
+  }))
+}));
+
+vi.mock("../../services/projectMetricsExportService", () => ({
+  exportProjectMetrics: vi.fn(),
+  normalizeProjectMetricsExportError: vi.fn(error => ({
+    status: error.status,
+    title:
+      error.status === 401
+        ? "Authentication required"
+        : error.status === 403
+          ? "Access denied"
+          : error.status === 404
+            ? "Project not found"
+            : error.status === 422
+              ? "No exportable data"
+              : error.status === 503
+                ? "Export unavailable"
+                : error.status === 400
+                  ? "Invalid export request"
+                  : "Unable to export historical metrics",
+    message:
+      error.status === 401
+        ? "Please sign in again to export project metrics."
+        : error.status === 403
+          ? "You do not have permission to export this project history."
+          : error.status === 404
+            ? "The requested project could not be found for export."
+            : error.status === 422
+              ? "No historical metrics were available for the selected range."
+              : error.status === 503
+                ? "Project metrics export is temporarily unavailable."
+                : error.status === 400
+                  ? "Please adjust the selected export filters and try again."
+                  : "Please try again once the Project Service is available."
   }))
 }));
 
@@ -223,6 +259,84 @@ describe("ProjectHistoricalMetricsPage", () => {
     expect(screen.getByRole("link", { name: "Metrics" })).toHaveAttribute("href", "/projects/project-1/metrics");
   });
 
+  it("shows an export button after workspace access succeeds and forwards the current filters", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+    exportProjectMetrics.mockResolvedValue({
+      filename: "edgecloud-metrics-project-2026-08-01-2026-08-02.csv",
+      blob: new Blob(["csv"], { type: "text/csv" }),
+      response: {
+        headers: {
+          get: vi.fn().mockReturnValue('attachment; filename="edgecloud-metrics-project-2026-08-01-2026-08-02.csv"')
+        }
+      }
+    });
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Fleet Observability" });
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeEnabled();
+    let capturedAnchor = null;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn().mockReturnValue("blob:metrics-export")
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+    const appendChildSpy = vi.spyOn(document.body, "appendChild").mockImplementation(node => {
+      if (String(node?.tagName).toLowerCase() === "a") {
+        capturedAnchor = node;
+        node.click = vi.fn();
+        node.remove = vi.fn();
+      }
+      return Node.prototype.appendChild.call(document.body, node);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    });
+
+    await waitFor(() => {
+      expect(exportProjectMetrics).toHaveBeenCalledTimes(1);
+    });
+    expect(exportProjectMetrics).toHaveBeenCalledWith(
+      "project-1",
+      expect.objectContaining({
+        from: expect.any(String),
+        to: expect.any(String),
+        sortDirection: "DESC"
+      })
+    );
+    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(capturedAnchor).not.toBeNull();
+    expect(capturedAnchor.click).toHaveBeenCalledTimes(1);
+    expect(capturedAnchor.remove).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:metrics-export");
+    appendChildSpy.mockRestore();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: originalCreateObjectURL
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: originalRevokeObjectURL
+    });
+    expect(screen.getByText("CSV download started for edgecloud-metrics-project-2026-08-01-2026-08-02.csv."))
+      .toBeInTheDocument();
+  });
+
+  it("hides export before workspace access succeeds", async () => {
+    getProjectWorkspace.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    expect(screen.queryByRole("button", { name: "Export CSV" })).not.toBeInTheDocument();
+  });
+
   it("uses the default previous-24-hours range and loads history after workspace access succeeds", async () => {
     getProjectWorkspace.mockResolvedValue(workspace());
     getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
@@ -308,6 +422,29 @@ describe("ProjectHistoricalMetricsPage", () => {
         page: 0
       })
     );
+  });
+
+  it("keeps export state separate from pagination and shows validation feedback", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+    exportProjectMetrics.mockResolvedValue({
+      filename: "edgecloud-project-metrics.csv",
+      blob: new Blob(["csv"], { type: "text/csv" }),
+      response: {
+        headers: {
+          get: vi.fn().mockReturnValue("")
+        }
+      }
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Fleet Observability" }))
+      .toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-03T12:00" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-01T12:00" } });
+    expect(await screen.findByText("Invalid date range")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeDisabled();
   });
 
   it("rejects reversed and excessive ranges before requesting", async () => {
@@ -515,6 +652,40 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     expect(await screen.findByText("Access denied")).toBeInTheDocument();
     expect(screen.getByText("You do not have permission to view this project workspace.")).toBeInTheDocument();
+  });
+
+  it("shows safe feedback for export errors without disturbing historical data", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+    exportProjectMetrics.mockRejectedValue({ status: 422 });
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Fleet Observability" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    });
+
+    expect(await screen.findByText("No exportable data")).toBeInTheDocument();
+    expect(screen.getByText("No historical metrics were available for the selected range.")).toBeInTheDocument();
+    expect(screen.getByText("uptime")).toBeInTheDocument();
+  });
+
+  it("surfaces unauthorised export feedback without clearing the page", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+    exportProjectMetrics.mockRejectedValue({ status: 403 });
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Fleet Observability" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    });
+
+    expect(await screen.findByText("Access denied")).toBeInTheDocument();
+    expect(screen.getByText("You do not have permission to export this project history.")).toBeInTheDocument();
+    expect(screen.getByText("uptime")).toBeInTheDocument();
   });
 
   it("does not request history before workspace access succeeds", () => {

@@ -16,6 +16,10 @@ import {
   getProjectHistoricalMetrics,
   normalizeProjectHistoricalMetricsError
 } from "../../services/projectHistoricalMetricsService";
+import {
+  exportProjectMetrics,
+  normalizeProjectMetricsExportError
+} from "../../services/projectMetricsExportService";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const DEFAULT_RANGE_HOURS = 24;
@@ -131,6 +135,11 @@ export default function ProjectHistoricalMetricsPage() {
   const [history, setHistory] = useState(null);
   const [historyError, setHistoryError] = useState(null);
   const [validationError, setValidationError] = useState("");
+  const [exportState, setExportState] = useState({
+    loading: false,
+    notice: null,
+    error: null
+  });
   const [filters, setFilters] = useState(() => {
     const defaults = createDefaultRange();
     return {
@@ -198,6 +207,57 @@ export default function ProjectHistoricalMetricsPage() {
     setHistoryError(null);
     return response;
   }, [filters.from, filters.page, filters.size, filters.sortDirection, filters.to, projectId]);
+
+  const handleExport = useCallback(async () => {
+    if (!workspace || rangeError || exportState.loading) {
+      return;
+    }
+
+    setExportState(current => ({
+      ...current,
+      loading: true,
+      notice: null,
+      error: null
+    }));
+
+    try {
+      const response = await exportProjectMetrics(projectId, {
+        from: toIsoDateTime(filters.from),
+        to: toIsoDateTime(filters.to),
+        sortDirection: filters.sortDirection
+      });
+
+      const safeFilename = response.filename || "edgecloud-project-metrics.csv";
+      const objectUrl = URL.createObjectURL(response.blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = safeFilename;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+
+      try {
+        anchor.click();
+      } finally {
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      setExportState({
+        loading: false,
+        notice: {
+          title: "Export started",
+          message: `CSV download started for ${safeFilename}.`
+        },
+        error: null
+      });
+    } catch (error) {
+      setExportState({
+        loading: false,
+        notice: null,
+        error: normalizeProjectMetricsExportError(error)
+      });
+    }
+  }, [exportState.loading, filters.from, filters.sortDirection, filters.to, projectId, rangeError, workspace]);
 
   const pollingEnabled = Boolean(workspace && !rangeError);
   const {
@@ -368,10 +428,34 @@ export default function ProjectHistoricalMetricsPage() {
           >
             {isRefreshing ? "Refreshing..." : "Refresh history"}
           </button>
+          <button
+            type="button"
+            className="project-metrics-export-button"
+            onClick={() => {
+              void handleExport();
+            }}
+            disabled={!workspace || Boolean(rangeError) || exportState.loading || workspaceLoading}
+          >
+            {exportState.loading ? "Exporting..." : "Export CSV"}
+          </button>
         </section>
 
         {validationError ? (
           <ErrorState title="Invalid date range" message={validationError} />
+        ) : null}
+
+        {exportState.notice ? (
+          <div className="project-metrics-banner export-success" role="status">
+            <strong>{exportState.notice.title}</strong>
+            <span>{exportState.notice.message}</span>
+          </div>
+        ) : null}
+
+        {exportState.error ? (
+          <div className="project-metrics-banner export-error" role="status">
+            <strong>{exportState.error.title}</strong>
+            <span>{exportState.error.message}</span>
+          </div>
         ) : null}
 
         {showInitialLoading ? (
