@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import EmptyState from "../../components/ui/EmptyState";
@@ -8,6 +8,7 @@ import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ProjectContextNav from "../../components/projects/ProjectContextNav";
 import { getDevicesByIds } from "../../services/deviceService";
 import {
   getProjectHealthSummary,
@@ -16,40 +17,7 @@ import {
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import { getMonitoredServicesByIds } from "../../services/serviceMonitoringService";
 
-const NAV_ITEMS = [
-  { label: "Observability", path: "workspace" },
-  { label: "Services", path: "services" },
-  { label: "Devices", path: "devices" },
-  { label: "Metrics", path: "metrics" }
-];
-
 const REFRESH_INTERVAL_MS = 60000;
-
-function WorkspaceNav() {
-  const { projectId } = useParams();
-  return (
-    <div className="project-workspace-nav" aria-label="Project workspace navigation">
-      {NAV_ITEMS.map(item => (
-        item.path === "metrics" ? (
-          <Link
-            key={item.path}
-            className="project-workspace-nav-item"
-            to={`/projects/${projectId}/metrics`}
-          >
-            {item.label}
-          </Link>
-        ) : (
-          <span key={item.path} className="project-workspace-nav-item">
-            {item.label}
-          </span>
-        )
-      ))}
-      <Link className="project-workspace-nav-back" to="/dashboard">
-        Back to dashboard
-      </Link>
-    </div>
-  );
-}
 
 function ResourceSection({
   title,
@@ -466,7 +434,7 @@ export default function ProjectWorkspacePage() {
           action={<StatusBadge variant={workspace.projectStatus}>{workspace.projectStatus}</StatusBadge>}
         />
 
-        <WorkspaceNav />
+        <ProjectContextNav active="workspace" />
 
         <div className="project-workspace-summary-grid">
           <article className="project-workspace-summary-card">

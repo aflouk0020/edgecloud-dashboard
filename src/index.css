@@ -2200,6 +2200,204 @@ input:focus {
   font-weight: 600;
 }
 
+.project-service-health-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 24px;
+}
+
+.project-service-health-context-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.project-service-health-context-card,
+.project-service-health-results,
+.project-service-health-banner {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.82));
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+}
+
+.project-service-health-context-card {
+  padding: 18px 20px;
+  text-align: left;
+}
+
+.project-service-health-context-card span {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.project-service-health-context-card strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.project-service-health-summary-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-service-health-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.project-service-health-toolbar label {
+  display: grid;
+  gap: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.project-service-health-toolbar select {
+  min-width: 180px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  padding: 12px 14px;
+}
+
+.project-service-health-refresh-button {
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #f97316, #fb923c);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.project-service-health-refresh-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.project-service-health-banner {
+  padding: 14px 16px;
+  color: #cbd5e1;
+}
+
+.project-service-health-results {
+  padding: 20px;
+}
+
+.project-service-health-results-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  color: #cbd5e1;
+}
+
+.project-service-health-responsive {
+  display: grid;
+  gap: 16px;
+}
+
+.project-service-health-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #f8fafc;
+}
+
+.project-service-health-table th,
+.project-service-health-table td {
+  padding: 14px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  vertical-align: top;
+}
+
+.project-service-health-table th {
+  color: #94a3b8;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-service-health-table td strong {
+  display: block;
+  color: #f8fafc;
+}
+
+.project-service-health-table tr.unavailable td {
+  color: #cbd5e1;
+}
+
+.project-service-health-card-list {
+  display: none;
+  gap: 14px;
+}
+
+.project-service-health-card {
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+}
+
+.project-service-health-card.unavailable {
+  border-style: dashed;
+}
+
+.project-service-health-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.project-service-health-card-header strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.project-service-health-card-header span {
+  color: #94a3b8;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.project-service-health-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-service-health-card-grid span {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.project-service-health-card-grid strong {
+  color: #f8fafc;
+}
+
 .project-metrics-page {
   width: min(1120px, 100%);
   margin: 0 auto;
@@ -2417,7 +2615,9 @@ input:focus {
 @media (max-width: 900px) {
   .project-workspace-summary-grid,
   .project-workspace-content-grid,
-  .project-workspace-health-grid {
+  .project-workspace-health-grid,
+  .project-service-health-context-grid,
+  .project-service-health-summary-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -2431,6 +2631,18 @@ input:focus {
   .project-metrics-context-grid,
   .project-metrics-control-group,
   .project-metrics-item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-service-health-table {
+    display: none;
+  }
+
+  .project-service-health-card-list {
+    display: grid;
+  }
+
+  .project-service-health-card-grid {
     grid-template-columns: 1fr;
   }
 

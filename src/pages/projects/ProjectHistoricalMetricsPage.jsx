@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import EmptyState from "../../components/ui/EmptyState";
@@ -7,6 +7,7 @@ import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ProjectContextNav from "../../components/projects/ProjectContextNav";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
   getProjectHistoricalMetrics,
@@ -16,13 +17,6 @@ import {
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const DEFAULT_RANGE_HOURS = 24;
 const MAX_RANGE_DAYS = 90;
-
-const NAV_ITEMS = [
-  { label: "Observability", to: "workspace" },
-  { label: "Services", to: "services" },
-  { label: "Devices", to: "devices" },
-  { label: "Metrics", to: "metrics", active: true }
-];
 
 function formatDateTimeInputValue(date) {
   const pad = value => String(value).padStart(2, "0");
@@ -68,32 +62,6 @@ function validateRange(from, to) {
   }
 
   return "";
-}
-
-function WorkspaceNav({ projectId }) {
-  return (
-    <div className="project-workspace-nav" aria-label="Project workspace navigation">
-      {NAV_ITEMS.map(item => (
-        item.active ? (
-          <Link
-            key={item.to}
-            className="project-workspace-nav-item active"
-            aria-current="page"
-            to={`/projects/${projectId}/${item.to}`}
-          >
-            {item.label}
-          </Link>
-        ) : (
-          <span key={item.to} className="project-workspace-nav-item">
-            {item.label}
-          </span>
-        )
-      ))}
-      <Link className="project-workspace-nav-back" to="/dashboard">
-        Back to dashboard
-      </Link>
-    </div>
-  );
 }
 
 function getDisplayValue(record, key, fallback = "Unavailable") {
@@ -332,7 +300,7 @@ export default function ProjectHistoricalMetricsPage() {
           action={<StatusBadge variant={workspace.projectStatus}>{workspace.projectStatus}</StatusBadge>}
         />
 
-        <WorkspaceNav projectId={projectId} />
+        <ProjectContextNav active="metrics" />
 
         <div className="project-metrics-context-grid">
           <article className="project-metrics-context-card">
