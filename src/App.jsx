@@ -6,6 +6,7 @@ import ServicesPage from "./pages/services/ServicesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import ProjectWorkspacePage from "./pages/projects/ProjectWorkspacePage";
 import ProjectServiceHealthPage from "./pages/projects/ProjectServiceHealthPage";
+import ProjectDeviceHealthPage from "./pages/projects/ProjectDeviceHealthPage";
 import ProjectHistoricalMetricsPage from "./pages/projects/ProjectHistoricalMetricsPage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
 import AlertsPage from "./pages/alerts/AlertsPage";
@@ -80,6 +81,15 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectServiceHealthPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId/devices"
+        element={
+          <ProtectedRoute>
+            <ProjectDeviceHealthPage />
           </ProtectedRoute>
         }
       />
