@@ -1,13 +1,26 @@
 import { apiRequest } from "./apiClient";
 
-function toQueryString(params) {
+function appendIfPresent(searchParams, key, value) {
+  if (value !== undefined && value !== null && value !== "") {
+    searchParams.append(key, String(value));
+  }
+}
+
+function buildQueryString(params = {}) {
   const searchParams = new URLSearchParams();
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      searchParams.set(key, String(value));
-    }
+  appendIfPresent(searchParams, "from", params.from);
+  appendIfPresent(searchParams, "to", params.to);
+  appendIfPresent(searchParams, "serviceId", params.serviceId);
+  appendIfPresent(searchParams, "deviceId", params.deviceId);
+  appendIfPresent(searchParams, "sortDirection", params.sortDirection);
+
+  (params.metricTypes || []).forEach(metricType => {
+    appendIfPresent(searchParams, "metricTypes", metricType);
   });
+
+  appendIfPresent(searchParams, "page", params.page);
+  appendIfPresent(searchParams, "size", params.size);
 
   return searchParams.toString();
 }
@@ -19,7 +32,7 @@ function buildError(status, message) {
 }
 
 export async function getProjectHistoricalMetrics(projectId, params = {}, options = {}) {
-  const query = toQueryString(params);
+  const query = buildQueryString(params);
   const endpoint = `/api/v2/projects/${projectId}/historical-metrics${query ? `?${query}` : ""}`;
   return apiRequest(endpoint, options);
 }

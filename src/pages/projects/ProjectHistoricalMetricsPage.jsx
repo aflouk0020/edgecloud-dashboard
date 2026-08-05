@@ -10,7 +10,10 @@ import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatusBadge from "../../components/ui/StatusBadge";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
+import ObservabilityFilterChips from "../../components/observability/ObservabilityFilterChips";
+import ObservabilityFilterPanel from "../../components/observability/ObservabilityFilterPanel";
 import { observabilityRefreshConfig } from "../../config/observabilityRefreshConfig";
+import { useObservabilityFilters } from "../../hooks/useObservabilityFilters";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
   getProjectHistoricalMetrics,
@@ -20,6 +23,7 @@ import {
   exportProjectMetrics,
   normalizeProjectMetricsExportError
 } from "../../services/projectMetricsExportService";
+import { normalizeSearchText } from "../../utils/observabilityFilterParams";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const DEFAULT_RANGE_HOURS = 24;
@@ -76,6 +80,47 @@ function getDisplayValue(record, key, fallback = "Unavailable") {
   return value === null || value === undefined || value === "" ? fallback : value;
 }
 
+function normalizeInputValue(value) {
+  return value === "" ? null : value;
+}
+
+function matchesSearch(search, values) {
+  const query = normalizeSearchText(search).toLowerCase();
+
+  if (!query) {
+    return true;
+  }
+
+  return values.some(value => String(value ?? "").toLowerCase().includes(query));
+}
+
+function buildOptionList(ids = [], allLabel) {
+  return [
+    { value: "", label: allLabel },
+    ...ids.map(id => ({ value: id, label: id }))
+  ];
+}
+
+function buildMetricTypeOptions(records = [], selectedMetricTypes = []) {
+  const metricTypes = new Set();
+
+  records.forEach(record => {
+    if (record?.metricType) {
+      metricTypes.add(record.metricType);
+    }
+  });
+
+  selectedMetricTypes.forEach(metricType => {
+    if (metricType) {
+      metricTypes.add(metricType);
+    }
+  });
+
+  return [...metricTypes]
+    .sort((left, right) => left.localeCompare(right))
+    .map(value => ({ value, label: value }));
+}
+
 function MetricsList({ records, sortDirection }) {
   if (!records.length) {
     return null;
@@ -129,6 +174,7 @@ function MetricsList({ records, sortDirection }) {
 
 export default function ProjectHistoricalMetricsPage() {
   const { projectId } = useParams();
+  const defaultRange = useMemo(() => createDefaultRange(), []);
   const [workspace, setWorkspace] = useState(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState(null);
@@ -140,16 +186,23 @@ export default function ProjectHistoricalMetricsPage() {
     notice: null,
     error: null
   });
-  const [filters, setFilters] = useState(() => {
-    const defaults = createDefaultRange();
-    return {
-      from: defaults.from,
-      to: defaults.to,
-      page: 0,
-      size: 25,
-      sortDirection: "DESC"
-    };
+  const [pagination, setPagination] = useState({
+    page: 0,
+    size: 25
   });
+  const {
+    filters,
+    setSearch,
+    setServiceId,
+    setDeviceId,
+    setMetricTypes,
+    setDateRange,
+    setSortDirection,
+    removeFilter,
+    clearFilters,
+    hasActiveFilters,
+    activeFilterCount
+  } = useObservabilityFilters({ defaultSortDirection: "DESC" });
 
   useEffect(() => {
     let active = true;
@@ -179,34 +232,121 @@ export default function ProjectHistoricalMetricsPage() {
     };
   }, [projectId]);
 
-  const selectedRangeMessage = useMemo(() => {
-    const fromValue = filters.from ? new Date(filters.from).toLocaleString("en-IE") : "Unavailable";
-    const toValue = filters.to ? new Date(filters.to).toLocaleString("en-IE") : "Unavailable";
-    return `${fromValue} → ${toValue}`;
-  }, [filters.from, filters.to]);
+  useEffect(() => {
+    if (filters.from && filters.to) {
+      return;
+    }
 
-  const rangeError = useMemo(() => validateRange(filters.from, filters.to), [filters.from, filters.to]);
+    setDateRange(defaultRange.from, defaultRange.to, { replace: true });
+  }, [defaultRange.from, defaultRange.to, filters.from, filters.to, setDateRange]);
+
+  const selectedFrom = filters.from || defaultRange.from;
+  const selectedTo = filters.to || defaultRange.to;
+
+  const selectedRangeMessage = useMemo(() => {
+    const fromValue = selectedFrom ? new Date(selectedFrom).toLocaleString("en-IE") : "Unavailable";
+    const toValue = selectedTo ? new Date(selectedTo).toLocaleString("en-IE") : "Unavailable";
+    return `${fromValue} → ${toValue}`;
+  }, [selectedFrom, selectedTo]);
+
+  const rangeError = useMemo(() => validateRange(selectedFrom, selectedTo), [selectedFrom, selectedTo]);
 
   useEffect(() => {
     setValidationError(rangeError);
   }, [rangeError]);
 
+  const serviceOptions = useMemo(
+    () => buildOptionList(workspace?.serviceIds || [], "All services"),
+    [workspace?.serviceIds]
+  );
+
+  const deviceOptions = useMemo(
+    () => buildOptionList(workspace?.deviceIds || [], "All devices"),
+    [workspace?.deviceIds]
+  );
+
+  const metricTypeOptions = useMemo(
+    () => buildMetricTypeOptions(history?.records || [], filters.metricTypes),
+    [filters.metricTypes, history?.records]
+  );
+
+  const resetPage = useCallback(() => {
+    setPagination(current => (
+      current.page === 0 ? current : { ...current, page: 0 }
+    ));
+  }, []);
+
+  const handleSearchChange = useCallback(value => {
+    setSearch(value);
+  }, [setSearch]);
+
+  const handleServiceChange = useCallback(value => {
+    setServiceId(normalizeInputValue(value));
+    if (normalizeInputValue(value)) {
+      setDeviceId("");
+    }
+    resetPage();
+  }, [resetPage, setDeviceId, setServiceId]);
+
+  const handleDeviceChange = useCallback(value => {
+    setDeviceId(normalizeInputValue(value));
+    if (normalizeInputValue(value)) {
+      setServiceId("");
+    }
+    resetPage();
+  }, [resetPage, setDeviceId, setServiceId]);
+
+  const handleMetricTypesChange = useCallback(values => {
+    setMetricTypes(values);
+    resetPage();
+  }, [resetPage, setMetricTypes]);
+
+  const handleDateRangeChange = useCallback((from, to) => {
+    setDateRange(normalizeInputValue(from), normalizeInputValue(to));
+    resetPage();
+  }, [resetPage, setDateRange]);
+
+  const handleSortDirectionChange = useCallback(value => {
+    setSortDirection(value);
+    resetPage();
+  }, [resetPage, setSortDirection]);
+
+  const handleClearFilters = useCallback(() => {
+    clearFilters({ replace: true });
+    setDateRange(defaultRange.from, defaultRange.to, { replace: true });
+    resetPage();
+  }, [clearFilters, defaultRange.from, defaultRange.to, resetPage, setDateRange]);
+
+  const historicalQuery = useMemo(() => ({
+    from: toIsoDateTime(selectedFrom),
+    to: toIsoDateTime(selectedTo),
+    serviceId: filters.serviceId,
+    deviceId: filters.deviceId,
+    metricTypes: filters.metricTypes,
+    page: pagination.page,
+    size: pagination.size,
+    sortDirection: filters.sortDirection
+  }), [
+    filters.deviceId,
+    filters.serviceId,
+    filters.metricTypes,
+    filters.sortDirection,
+    pagination.page,
+    pagination.size,
+    selectedFrom,
+    selectedTo,
+  ]);
+
   const fetchHistory = useCallback(async () => {
     const response = await getProjectHistoricalMetrics(
       projectId,
-      {
-        from: toIsoDateTime(filters.from),
-        to: toIsoDateTime(filters.to),
-        page: filters.page,
-        size: filters.size,
-        sortDirection: filters.sortDirection
-      }
+      historicalQuery
     );
 
     setHistory(response);
     setHistoryError(null);
     return response;
-  }, [filters.from, filters.page, filters.size, filters.sortDirection, filters.to, projectId]);
+  }, [historicalQuery, projectId]);
 
   const handleExport = useCallback(async () => {
     if (!workspace || rangeError || exportState.loading) {
@@ -222,8 +362,11 @@ export default function ProjectHistoricalMetricsPage() {
 
     try {
       const response = await exportProjectMetrics(projectId, {
-        from: toIsoDateTime(filters.from),
-        to: toIsoDateTime(filters.to),
+        from: toIsoDateTime(selectedFrom),
+        to: toIsoDateTime(selectedTo),
+        serviceId: filters.serviceId,
+        deviceId: filters.deviceId,
+        metricTypes: filters.metricTypes,
         sortDirection: filters.sortDirection
       });
 
@@ -257,7 +400,18 @@ export default function ProjectHistoricalMetricsPage() {
         error: normalizeProjectMetricsExportError(error)
       });
     }
-  }, [exportState.loading, filters.from, filters.sortDirection, filters.to, projectId, rangeError, workspace]);
+  }, [
+    exportState.loading,
+    filters.deviceId,
+    filters.metricTypes,
+    filters.serviceId,
+    filters.sortDirection,
+    projectId,
+    rangeError,
+    selectedFrom,
+    selectedTo,
+    workspace
+  ]);
 
   const pollingEnabled = Boolean(workspace && !rangeError);
   const {
@@ -268,7 +422,7 @@ export default function ProjectHistoricalMetricsPage() {
     enabled: pollingEnabled,
     immediate: false,
     intervalMs: observabilityRefreshConfig.historicalRefreshIntervalMs,
-    autoRefreshEnabled: filters.page === 0
+    autoRefreshEnabled: pagination.page === 0
   });
 
   useEffect(() => {
@@ -281,15 +435,19 @@ export default function ProjectHistoricalMetricsPage() {
     });
 
     return undefined;
-  }, [filters.from, filters.page, filters.size, filters.sortDirection, filters.to, rangeError, refreshNow, workspace]);
-
-  const updateFilters = updates => {
-    setFilters(current => ({
-      ...current,
-      ...updates,
-      page: updates.page ?? 0
-    }));
-  };
+  }, [
+    filters.deviceId,
+    filters.metricTypes,
+    filters.serviceId,
+    filters.sortDirection,
+    rangeError,
+    pagination.page,
+    pagination.size,
+    refreshNow,
+    selectedFrom,
+    selectedTo,
+    workspace
+  ]);
 
   const isRefreshing = connectionState === CONNECTION_STATE.REFRESHING && Boolean(history);
   const showInitialLoading = connectionState === CONNECTION_STATE.REFRESHING && !history;
@@ -300,6 +458,121 @@ export default function ProjectHistoricalMetricsPage() {
       : connectionState === CONNECTION_STATE.DISCONNECTED
         ? "Automatic historical polling is paused until the connection recovers."
         : "";
+
+  const dataState = history?.dataState || "NO_DATA";
+  const pageInfo = history?.pagination || {
+    currentPage: pagination.page,
+    pageSize: pagination.size,
+    totalElements: 0,
+    totalPages: 0,
+    sortDirection: filters.sortDirection
+  };
+  const records = history?.records || [];
+  const isEmpty = dataState === "NO_DATA" || records.length === 0;
+  const isUnavailable = dataState === "UNAVAILABLE";
+  const isPartial = dataState === "PARTIAL";
+  const filteredRecords = useMemo(() => {
+    const query = normalizeSearchText(filters.search).toLowerCase();
+
+    if (!query) {
+      return records;
+    }
+
+    return records.filter(record => matchesSearch(query, [
+      record.recordId,
+      record.metricType,
+      record.sourceType,
+      record.sourceId,
+      record.unit,
+      record.status,
+      record.recordedAt,
+      record.numericValue
+    ]));
+  }, [filters.search, records]);
+  const isFilteredEmpty = !isEmpty && filteredRecords.length === 0;
+
+  const historicalFilterChips = useMemo(() => {
+    const chips = [];
+
+    if (filters.search) {
+      chips.push({
+        id: "search",
+        label: "Search",
+        value: filters.search,
+        onRemove: () => handleSearchChange("")
+      });
+    }
+
+    if (filters.serviceId) {
+      chips.push({
+        id: "service",
+        label: "Service",
+        value: filters.serviceId,
+        onRemove: () => handleServiceChange("")
+      });
+    }
+
+    if (filters.deviceId) {
+      chips.push({
+        id: "device",
+        label: "Device",
+        value: filters.deviceId,
+        onRemove: () => handleDeviceChange("")
+      });
+    }
+
+    filters.metricTypes.forEach(metricType => {
+      chips.push({
+        id: `metric-${metricType}`,
+        label: "Metric type",
+        value: metricType,
+        onRemove: () => handleMetricTypesChange(filters.metricTypes.filter(value => value !== metricType))
+      });
+    });
+
+    if (selectedFrom) {
+      chips.push({
+        id: "from",
+        label: "From",
+        value: new Date(selectedFrom).toLocaleString("en-IE"),
+        onRemove: () => handleDateRangeChange("", selectedTo)
+      });
+    }
+
+    if (selectedTo) {
+      chips.push({
+        id: "to",
+        label: "To",
+        value: new Date(selectedTo).toLocaleString("en-IE"),
+        onRemove: () => handleDateRangeChange(selectedFrom, "")
+      });
+    }
+
+    if (filters.sortDirection !== "DESC") {
+      chips.push({
+        id: "sort",
+        label: "Sort",
+        value: filters.sortDirection,
+        onRemove: () => handleSortDirectionChange("DESC")
+      });
+    }
+
+    return chips;
+  }, [
+    filters.deviceId,
+    filters.metricTypes,
+    filters.search,
+    filters.serviceId,
+    filters.sortDirection,
+    handleDateRangeChange,
+    handleDeviceChange,
+    handleMetricTypesChange,
+    handleSearchChange,
+    handleServiceChange,
+    handleSortDirectionChange,
+    selectedFrom,
+    selectedTo
+  ]);
 
   if (workspaceLoading) {
     return (
@@ -333,18 +606,6 @@ export default function ProjectHistoricalMetricsPage() {
       </DashboardLayout>
     );
   }
-  const dataState = history?.dataState || "NO_DATA";
-  const pagination = history?.pagination || {
-    currentPage: filters.page,
-    pageSize: filters.size,
-    totalElements: 0,
-    totalPages: 0,
-    sortDirection: filters.sortDirection
-  };
-  const records = history?.records || [];
-  const isEmpty = dataState === "NO_DATA" || records.length === 0;
-  const isUnavailable = dataState === "UNAVAILABLE";
-  const isPartial = dataState === "PARTIAL";
 
   return (
     <DashboardLayout>
@@ -376,39 +637,48 @@ export default function ProjectHistoricalMetricsPage() {
           </article>
         </div>
 
+        <ObservabilityFilterPanel
+          title="Refine historical metrics"
+          searchEnabled
+          searchPlaceholder="Search records, IDs, values or status"
+          searchValue={filters.search}
+          onSearchChange={handleSearchChange}
+          serviceId={filters.serviceId || ""}
+          serviceOptions={serviceOptions}
+          onServiceIdChange={handleServiceChange}
+          deviceId={filters.deviceId || ""}
+          deviceOptions={deviceOptions}
+          onDeviceIdChange={handleDeviceChange}
+          metricTypes={filters.metricTypes}
+          metricTypeOptions={metricTypeOptions}
+          onMetricTypesChange={handleMetricTypesChange}
+          from={selectedFrom}
+          to={selectedTo}
+          dateRangeEnabled
+          onDateRangeChange={handleDateRangeChange}
+          sortDirection={filters.sortDirection}
+          sortOptions={[
+            { value: "DESC", label: "Newest first" },
+            { value: "ASC", label: "Oldest first" }
+          ]}
+          onSortDirectionChange={handleSortDirectionChange}
+          activeFilterCount={activeFilterCount}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={handleClearFilters}
+        />
+
+        <ObservabilityFilterChips
+          chips={historicalFilterChips}
+          onClearAll={handleClearFilters}
+        />
+
         <section className="project-metrics-controls">
           <div className="project-metrics-control-group">
             <label>
-              From
-              <input
-                type="datetime-local"
-                value={filters.from}
-                onChange={event => updateFilters({ from: event.target.value })}
-              />
-            </label>
-            <label>
-              To
-              <input
-                type="datetime-local"
-                value={filters.to}
-                onChange={event => updateFilters({ to: event.target.value })}
-              />
-            </label>
-            <label>
-              Sort
-              <select
-                value={filters.sortDirection}
-                onChange={event => updateFilters({ sortDirection: event.target.value })}
-              >
-                <option value="DESC">DESC</option>
-                <option value="ASC">ASC</option>
-              </select>
-            </label>
-            <label>
               Page size
               <select
-                value={filters.size}
-                onChange={event => updateFilters({ size: Number(event.target.value) })}
+                value={pagination.size}
+                onChange={event => setPagination({ page: 0, size: Number(event.target.value) })}
               >
                 {PAGE_SIZE_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
@@ -490,7 +760,25 @@ export default function ProjectHistoricalMetricsPage() {
           </div>
         ) : null}
 
-        {isEmpty ? (
+        {isFilteredEmpty ? (
+          <EmptyState
+            title="No matching historical records"
+            message="Clear filters to view the linked historical metrics for this project."
+            action={(
+              <button
+                type="button"
+                className="project-metrics-refresh-button"
+                onClick={() => {
+                  void refreshNow().catch(error => {
+                    setHistoryError(normalizeProjectHistoricalMetricsError(error));
+                  });
+                }}
+              >
+                Refresh history
+              </button>
+            )}
+          />
+        ) : isEmpty ? (
           <EmptyState
             title="No historical records found"
             message="There are no telemetry records for the selected period."
@@ -499,30 +787,30 @@ export default function ProjectHistoricalMetricsPage() {
           <div className="project-metrics-results">
             <div className="project-metrics-results-summary">
               <StatusBadge variant={dataState}>{dataState}</StatusBadge>
-              <span>Sorted {pagination.sortDirection}</span>
-              <span>{pagination.totalElements} records</span>
+              <span>Sorted {pageInfo.sortDirection}</span>
+              <span>{pageInfo.totalElements} records</span>
             </div>
 
             <MetricsList
-              records={records}
-              sortDirection={pagination.sortDirection}
+              records={filteredRecords}
+              sortDirection={pageInfo.sortDirection}
             />
 
             <div className="project-metrics-pagination">
               <button
                 type="button"
-                onClick={() => updateFilters({ page: Math.max((pagination.currentPage || 0) - 1, 0) })}
-                disabled={pagination.currentPage <= 0 || isRefreshing}
+                onClick={() => setPagination(current => ({ ...current, page: Math.max((current.page || 0) - 1, 0) }))}
+                disabled={pageInfo.currentPage <= 0 || isRefreshing}
               >
                 Previous
               </button>
               <div>
-                <span>Page {pagination.currentPage + 1} of {Math.max(pagination.totalPages || 1, 1)}</span>
+                <span>Page {pageInfo.currentPage + 1} of {Math.max(pageInfo.totalPages || 1, 1)}</span>
               </div>
               <button
                 type="button"
-                onClick={() => updateFilters({ page: (pagination.currentPage || 0) + 1 })}
-                disabled={pagination.currentPage + 1 >= (pagination.totalPages || 0) || isRefreshing}
+                onClick={() => setPagination(current => ({ ...current, page: (current.page || 0) + 1 }))}
+                disabled={pageInfo.currentPage + 1 >= (pageInfo.totalPages || 0) || isRefreshing}
               >
                 Next
               </button>

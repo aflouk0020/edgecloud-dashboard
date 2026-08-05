@@ -9,8 +9,11 @@ import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ObservabilityFilterChips from "../../components/observability/ObservabilityFilterChips";
+import ObservabilityFilterPanel from "../../components/observability/ObservabilityFilterPanel";
 import ObservabilityConnectionStatus from "../../components/observability/ObservabilityConnectionStatus";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
+import { useObservabilityFilters } from "../../hooks/useObservabilityFilters";
 import { getDevicesByIds } from "../../services/deviceService";
 import {
   getProjectHealthSummary,
@@ -18,6 +21,7 @@ import {
 } from "../../services/projectHealthSummaryService";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import { getMonitoredServicesByIds } from "../../services/serviceMonitoringService";
+import { normalizeSearchText } from "../../utils/observabilityFilterParams";
 
 function ResourceSection({
   title,
@@ -67,6 +71,16 @@ function HealthValue({ value, fallback }) {
   return <strong>{value ?? fallback}</strong>;
 }
 
+function matchesSearch(search, values) {
+  const query = normalizeSearchText(search).toLowerCase();
+
+  if (!query) {
+    return true;
+  }
+
+  return values.some(value => String(value ?? "").toLowerCase().includes(query));
+}
+
 export default function ProjectWorkspacePage() {
   const { projectId } = useParams();
   const [workspace, setWorkspace] = useState(null);
@@ -82,6 +96,15 @@ export default function ProjectWorkspacePage() {
   const [deviceLoading, setDeviceLoading] = useState(false);
   const [serviceError, setServiceError] = useState("");
   const [deviceError, setDeviceError] = useState("");
+
+  const {
+    filters,
+    setSearch,
+    removeFilter,
+    clearFilters,
+    hasActiveFilters,
+    activeFilterCount
+  } = useObservabilityFilters();
 
   useEffect(() => {
     let active = true;
@@ -151,7 +174,11 @@ export default function ProjectWorkspacePage() {
         setServiceDetails(
           results.map(({ serviceId, service }) => ({
             id: serviceId,
+            serviceId,
             name: service?.serviceName || "Unavailable service",
+            serviceName: service?.serviceName || null,
+            serviceUrl: service?.serviceUrl || null,
+            status: service?.status || null,
             primary: service?.serviceUrl || serviceId,
             secondary: service?.status ? `Status: ${service.status}` : "Unavailable",
             unavailable: !service
@@ -199,7 +226,13 @@ export default function ProjectWorkspacePage() {
         setDeviceDetails(
           results.map(({ deviceId, device }) => ({
             id: deviceId,
+            deviceId,
             name: device?.deviceName || "Unavailable device",
+            deviceName: device?.deviceName || null,
+            deviceType: device?.deviceType || null,
+            ipAddress: device?.ipAddress || null,
+            currentStatus: device?.status || null,
+            lastHeartbeat: device?.lastHeartbeat || null,
             primary: device?.ipAddress || deviceId,
             secondary: device?.status
               ? `Heartbeat: ${device.lastHeartbeat ? new Date(device.lastHeartbeat).toLocaleString("en-IE") : "Unknown"}`
@@ -259,6 +292,41 @@ export default function ProjectWorkspacePage() {
 
   const serviceIds = useMemo(() => workspace?.serviceIds || [], [workspace]);
   const deviceIds = useMemo(() => workspace?.deviceIds || [], [workspace]);
+
+  const filteredServiceDetails = useMemo(() => serviceDetails.filter(item => matchesSearch(filters.search, [
+    item.serviceId,
+    item.name,
+    item.serviceName,
+    item.serviceUrl,
+    item.status,
+    item.primary,
+    item.secondary
+  ])), [filters.search, serviceDetails]);
+
+  const filteredDeviceDetails = useMemo(() => deviceDetails.filter(item => matchesSearch(filters.search, [
+    item.deviceId,
+    item.name,
+    item.deviceName,
+    item.deviceType,
+    item.ipAddress,
+    item.currentStatus,
+    item.lastHeartbeat,
+    item.primary,
+    item.secondary
+  ])), [deviceDetails, filters.search]);
+
+  const workspaceFilterChips = useMemo(() => {
+    if (!filters.search) {
+      return [];
+    }
+
+    return [{
+      id: "search",
+      label: "Search",
+      value: filters.search,
+      onRemove: () => removeFilter("search")
+    }];
+  }, [filters.search, removeFilter]);
 
   const emptyWorkspace = workspace?.emptyWorkspace
     || (serviceIds.length === 0 && deviceIds.length === 0);
@@ -373,6 +441,13 @@ export default function ProjectWorkspacePage() {
     );
   };
 
+  const serviceEmptyMessage = filters.search
+    ? "No services match the current search."
+    : "No active service associations yet.";
+  const deviceEmptyMessage = filters.search
+    ? "No devices match the current search."
+    : "No active device associations yet.";
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -440,6 +515,23 @@ export default function ProjectWorkspacePage() {
           </article>
         </div>
 
+        <ObservabilityFilterPanel
+          title="Search linked resources"
+          searchEnabled
+          searchPlaceholder="Search services, devices, IDs, status or IP addresses"
+          searchValue={filters.search}
+          onSearchChange={value => setSearch(value)}
+          activeFilterCount={activeFilterCount}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+          compact
+        />
+
+        <ObservabilityFilterChips
+          chips={workspaceFilterChips}
+          onClearAll={clearFilters}
+        />
+
         <section className="project-workspace-health-panel">
           <div className="project-workspace-health-header">
             <div>
@@ -480,8 +572,8 @@ export default function ProjectWorkspacePage() {
               title="Associated services"
               loading={serviceLoading}
               error={serviceError}
-              items={serviceDetails}
-              emptyMessage="No active service associations yet."
+              items={filteredServiceDetails}
+              emptyMessage={serviceEmptyMessage}
               renderItem={item => (
                 <article className={`project-resource-item ${item.unavailable ? "unavailable" : ""}`}>
                   <div>
@@ -496,8 +588,8 @@ export default function ProjectWorkspacePage() {
               title="Associated devices"
               loading={deviceLoading}
               error={deviceError}
-              items={deviceDetails}
-              emptyMessage="No active device associations yet."
+              items={filteredDeviceDetails}
+              emptyMessage={deviceEmptyMessage}
               renderItem={item => (
                 <article className={`project-resource-item ${item.unavailable ? "unavailable" : ""}`}>
                   <div>

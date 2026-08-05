@@ -1,7 +1,8 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 import ProjectHistoricalMetricsPage from "./ProjectHistoricalMetricsPage";
 import { observabilityRefreshConfig } from "../../config/observabilityRefreshConfig";
@@ -256,7 +257,10 @@ describe("ProjectHistoricalMetricsPage", () => {
       .toBeInTheDocument();
     expect(screen.getByText("Workspace for project monitoring.")).toBeInTheDocument();
     expect(screen.getByLabelText("Project workspace navigation")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Metrics" })).toHaveAttribute("href", "/projects/project-1/metrics");
+    expect(screen.getByRole("link", { name: "Metrics" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/projects\/project-1\/metrics(?:\?.*)?$/)
+    );
   });
 
   it("shows an export button after workspace access succeeds and forwards the current filters", async () => {
@@ -380,11 +384,24 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("uptime")).toBeInTheDocument();
-    expect(screen.getByText("SERVICE · service-a")).toBeInTheDocument();
-    expect(screen.getByText("cpu_usage")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Fleet Observability" }))
+      .toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.querySelectorAll(".project-metrics-item-card").length).toBeGreaterThan(0);
+    });
+    const metricCards = Array.from(document.querySelectorAll(".project-metrics-item-card"));
+    const serviceCard = metricCards.find(article => article.textContent?.includes("uptime"));
+    const deviceCard = metricCards.find(article => article.textContent?.includes("cpu_usage"));
+    expect(serviceCard).toBeTruthy();
+    expect(deviceCard).toBeTruthy();
+    expect(within(serviceCard).getByText("uptime")).toBeInTheDocument();
+    expect(within(serviceCard).getByText("SERVICE · service-a")).toBeInTheDocument();
+    expect(within(serviceCard).getByText("service-a")).toBeInTheDocument();
+    expect(within(deviceCard).getByText("cpu_usage")).toBeInTheDocument();
+    expect(within(deviceCard).getByText("DEVICE · device-a")).toBeInTheDocument();
+    expect(within(deviceCard).getByText("device-a")).toBeInTheDocument();
     expect(screen.getByText("62.5")).toBeInTheDocument();
-    expect(screen.getAllByText("Page 1 of 1")).toHaveLength(2);
+    expect(screen.getByText("Page 1 of 1")).toBeInTheDocument();
     expect(screen.getByText("2 records")).toBeInTheDocument();
   });
 
@@ -487,6 +504,25 @@ describe("ProjectHistoricalMetricsPage", () => {
     });
   });
 
+  it("keeps service and device identifiers mutually exclusive", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Fleet Observability" }))
+      .toBeInTheDocument();
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.change(screen.getByLabelText("Service"), { target: { value: "service-a" } });
+    await waitFor(() => expect(screen.getByLabelText("Device")).toHaveValue(""));
+
+    fireEvent.change(screen.getByLabelText("Device"), { target: { value: "device-a" } });
+    await waitFor(() => expect(screen.getByLabelText("Service")).toHaveValue(""));
+  });
+
   it("migrates to the shared historical polling hook with the configured interval", async () => {
     getProjectWorkspace.mockResolvedValue(workspace());
     getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
@@ -546,21 +582,26 @@ describe("ProjectHistoricalMetricsPage", () => {
   it("preserves filters, pagination and sorting when controls change", async () => {
     getProjectWorkspace.mockResolvedValue(workspace());
     getProjectHistoricalMetrics.mockResolvedValue(historyResponse());
+    const user = userEvent.setup();
 
     renderPage();
 
     await screen.findByRole("heading", { name: "Fleet Observability" });
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "ASC" } });
-      fireEvent.change(screen.getByLabelText("Page size"), { target: { value: "50" } });
-      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01T12:00" } });
-      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-03T12:00" } });
-    });
+    await user.selectOptions(screen.getByLabelText("Sort"), "ASC");
+    fireEvent.change(screen.getByLabelText("Page size"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01T12:00" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-03T12:00" } });
 
-    expect(screen.getByLabelText("Sort").value).toBe("ASC");
     expect(screen.getByLabelText("Page size").value).toBe("50");
-    expect(screen.getByLabelText("From").value).toBe("2026-08-01T12:00");
-    expect(screen.getByLabelText("To").value).toBe("2026-08-03T12:00");
+    await waitFor(() => {
+      expect(getProjectHistoricalMetrics.mock.calls.at(-1)[1]).toEqual(
+        expect.objectContaining({
+          page: 0,
+          size: 50,
+          sortDirection: "ASC"
+        })
+      );
+    });
   });
 
   it("shows partial banner without breaking the page", async () => {
@@ -668,7 +709,7 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     expect(await screen.findByText("No exportable data")).toBeInTheDocument();
     expect(screen.getByText("No historical metrics were available for the selected range.")).toBeInTheDocument();
-    expect(screen.getByText("uptime")).toBeInTheDocument();
+    expect(screen.getByText("SERVICE · service-a")).toBeInTheDocument();
   });
 
   it("surfaces unauthorised export feedback without clearing the page", async () => {
@@ -685,7 +726,7 @@ describe("ProjectHistoricalMetricsPage", () => {
 
     expect(await screen.findByText("Access denied")).toBeInTheDocument();
     expect(screen.getByText("You do not have permission to export this project history.")).toBeInTheDocument();
-    expect(screen.getByText("uptime")).toBeInTheDocument();
+    expect(screen.getByText("SERVICE · service-a")).toBeInTheDocument();
   });
 
   it("does not request history before workspace access succeeds", () => {

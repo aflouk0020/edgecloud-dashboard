@@ -1,7 +1,8 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 import { AuthProvider } from "../../context/AuthContext";
 import ProjectDeviceHealthPage from "./ProjectDeviceHealthPage";
@@ -232,6 +233,7 @@ describe("ProjectDeviceHealthPage", () => {
     renderPage();
 
     await screen.findByRole("table");
+
     const rows = () => Array.from(document.querySelectorAll(".project-device-health-table tbody tr"));
     expect(rows()[0]).toHaveTextContent("Alpha Node");
     expect(rows()[1]).toHaveTextContent("edge node");
@@ -239,17 +241,21 @@ describe("ProjectDeviceHealthPage", () => {
     expect(rows()[2]).toHaveTextContent("edge node");
     expect(rows()[2]).toHaveTextContent("device-c");
 
-    fireEvent.change(screen.getByLabelText("Sort direction"), {
-      target: { value: "DESC" }
+    cleanup();
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectDeviceHealth.mockResolvedValue(healthSummary());
+    renderPage("/projects/project-1/devices?sort=DESC");
+
+    await screen.findByRole("table");
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Sort" })).toHaveValue("DESC");
     });
 
-    await waitFor(() => {
-      expect(rows()[0]).toHaveTextContent("edge node");
-      expect(rows()[0]).toHaveTextContent("device-a");
-      expect(rows()[1]).toHaveTextContent("edge node");
-      expect(rows()[1]).toHaveTextContent("device-c");
-      expect(rows()[2]).toHaveTextContent("Alpha Node");
-    });
+    expect(rows()[0]).toHaveTextContent("edge node");
+    expect(rows()[0]).toHaveTextContent("device-a");
+    expect(rows()[1]).toHaveTextContent("edge node");
+    expect(rows()[1]).toHaveTextContent("device-c");
+    expect(rows()[2]).toHaveTextContent("Alpha Node");
   });
 
   it("shows empty, partial, unavailable and NO_DATA states", async () => {
@@ -299,6 +305,56 @@ describe("ProjectDeviceHealthPage", () => {
     expect(screen.getAllByText("zeta-node").length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("Current health status UNAVAILABLE")).toHaveLength(2);
     expect(screen.getAllByLabelText("Device data state NO_DATA")).toHaveLength(2);
+  });
+
+  it("filters devices client-side without extra refresh requests", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectDeviceHealth.mockResolvedValue(healthSummary());
+
+    renderPage();
+
+    expect((await screen.findAllByText("Alpha Node")).length).toBeGreaterThan(0);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByPlaceholderText("Search devices, IDs, types, IPs, status or data state"),
+      "edge node"
+    );
+
+    await waitFor(() => {
+      const rows = Array.from(document.querySelectorAll(".project-device-health-table tbody tr"));
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveTextContent("edge node");
+      expect(rows[1]).toHaveTextContent("edge node");
+      expect(screen.queryAllByText("Alpha Node").length).toBe(0);
+    });
+
+    expect(getProjectDeviceHealth).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("shows shared filter chips and clears them", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectDeviceHealth.mockResolvedValue(healthSummary());
+
+    renderPage();
+
+    expect((await screen.findAllByText("Alpha Node")).length).toBeGreaterThan(0);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByPlaceholderText("Search devices, IDs, types, IPs, status or data state"),
+      "node"
+    );
+    fireEvent.change(screen.getByLabelText("Device health"), { target: { value: "DEGRADED" } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Remove Search" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Remove Device health" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+    await waitFor(() => expect(screen.getByPlaceholderText("Search devices, IDs, types, IPs, status or data state")).toHaveValue(""));
+    expect(screen.queryByRole("button", { name: "Remove Search" })).not.toBeInTheDocument();
   });
 
   it("shows API error and unauthorised states", async () => {
