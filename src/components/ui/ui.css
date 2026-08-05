@@ -163,6 +163,230 @@
   animation: uiPulse 1.3s infinite;
 }
 
+.observability-filter-panel {
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+}
+
+.observability-filter-panel.compact {
+  border-radius: 20px;
+}
+
+.observability-filter-panel__details {
+  padding: 0;
+}
+
+.observability-filter-panel__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.observability-filter-panel__summary::-webkit-details-marker {
+  display: none;
+}
+
+.observability-filter-eyebrow {
+  margin: 0 0 6px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.observability-filter-panel__summary h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.observability-filter-panel__meta {
+  min-width: 88px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(37, 99, 235, 0.08);
+  text-align: center;
+}
+
+.observability-filter-panel__meta strong {
+  display: block;
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.observability-filter-panel__meta span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.observability-filter-panel__body {
+  display: grid;
+  gap: 16px;
+  padding: 0 22px 22px;
+}
+
+.observability-filter-field {
+  display: grid;
+  gap: 8px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.observability-filter-field span {
+  color: #334155;
+}
+
+.observability-filter-field input,
+.observability-filter-field select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  font: inherit;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.observability-filter-field input:focus,
+.observability-filter-field select:focus {
+  border-color: rgba(37, 99, 235, 0.7);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.observability-search-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.observability-search-input span {
+  color: #2563eb;
+  font-size: 18px;
+}
+
+.observability-search-input input {
+  border: 0;
+  padding-inline: 0;
+  background: transparent;
+}
+
+.observability-filter-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.observability-filter-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.observability-filter-clear {
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #2563eb;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.observability-filter-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.observability-filter-chips {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  text-align: left;
+}
+
+.observability-filter-chips__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.observability-filter-chips__clear,
+.observability-filter-chip__remove {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.observability-filter-chips__clear {
+  padding: 8px 12px;
+}
+
+.observability-filter-chips__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.observability-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(248, 250, 252, 0.96);
+}
+
+.observability-filter-chip__copy {
+  display: grid;
+  gap: 2px;
+}
+
+.observability-filter-chip__copy span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.observability-filter-chip__copy strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.observability-filter-chip__remove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
 @keyframes uiPulse {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }

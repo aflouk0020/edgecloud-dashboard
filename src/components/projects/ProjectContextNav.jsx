@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 const NAV_ITEMS = [
   { label: "Observability", key: "workspace", route: "workspace" },
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
 
 function ProjectContextNav({ active = "workspace" }) {
   const { projectId } = useParams();
+  const location = useLocation();
 
   return (
     <div className="project-workspace-nav" aria-label="Project workspace navigation">
@@ -28,7 +29,10 @@ function ProjectContextNav({ active = "workspace" }) {
             key={item.key}
             className={`project-workspace-nav-item${isActive ? " active" : ""}`}
             aria-current={isActive ? "page" : undefined}
-            to={`/projects/${projectId}/${item.route}`}
+            to={{
+              pathname: `/projects/${projectId}/${item.route}`,
+              search: location.search
+            }}
           >
             {item.label}
           </Link>

@@ -1,6 +1,7 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProjectWorkspacePage from "./ProjectWorkspacePage";
@@ -205,6 +206,8 @@ describe("ProjectWorkspacePage", () => {
     expect(screen.getAllByText("Services").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Devices").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Metrics").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByPlaceholderText("Search services, devices, IDs, status or IP addresses"))
+      .toBeInTheDocument();
   });
 
   it("shows section loading states before enrichment resolves", async () => {
@@ -569,5 +572,86 @@ describe("ProjectWorkspacePage", () => {
     expect(await screen.findByText("monitoring-service")).toBeInTheDocument();
     expect(screen.getByText("Associated devices unavailable"))
       .toBeInTheDocument();
+  });
+
+  it("filters linked services and devices client-side without extra requests", async () => {
+    getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "HEALTHY",
+      totalRegisteredDevices: 2,
+      onlineDevices: 2,
+      offlineDevices: 0,
+      activeMonitoringServices: 2,
+      latestTelemetryReceivedAt: "2026-08-03T10:12:00Z",
+      monitoringStatus: "AVAILABLE",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "COMPLETE"
+    });
+    getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
+    getDevicesByIds.mockResolvedValue(deviceDetails);
+
+    renderWorkspace();
+
+    expect(await screen.findByText("monitoring-service")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByPlaceholderText("Search services, devices, IDs, status or IP addresses"),
+      "simulator"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No services match the current search.")).toBeInTheDocument();
+      expect(screen.getByText("simulator-01")).toBeInTheDocument();
+      expect(screen.queryByText("monitoring-service")).not.toBeInTheDocument();
+    });
+
+    expect(getMonitoredServicesByIds).toHaveBeenCalledTimes(1);
+    expect(getDevicesByIds).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("removes workspace filters through the shared chips and clears the query", async () => {
+    getProjectWorkspace.mockResolvedValue(baseWorkspace);
+    getProjectHealthSummary.mockResolvedValue({
+      projectId: "project-1",
+      projectName: "Fleet Observability",
+      projectStatus: "ACTIVE",
+      overallHealth: "HEALTHY",
+      totalRegisteredDevices: 2,
+      onlineDevices: 2,
+      offlineDevices: 0,
+      activeMonitoringServices: 2,
+      latestTelemetryReceivedAt: "2026-08-03T10:12:00Z",
+      monitoringStatus: "AVAILABLE",
+      generatedAt: "2026-08-03T10:12:00Z",
+      dataCompleteness: "COMPLETE"
+    });
+    getMonitoredServicesByIds.mockResolvedValue(serviceDetails);
+    getDevicesByIds.mockResolvedValue(deviceDetails);
+
+    renderWorkspace();
+
+    await screen.findByText("monitoring-service");
+    const user = userEvent.setup();
+    const searchInput = await screen.findByPlaceholderText("Search services, devices, IDs, status or IP addresses");
+    await user.type(searchInput, "monitoring");
+
+    await waitFor(() => {
+      expect(searchInput).toHaveValue("monitoring");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Remove Search" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Remove Search" }));
+
+    await waitFor(() => expect(screen.getByPlaceholderText("Search services, devices, IDs, status or IP addresses")).toHaveValue(""));
+    expect(screen.getByText("monitoring-service")).toBeInTheDocument();
+    expect(screen.getByText("raspberry-pi-01")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Search" })).not.toBeInTheDocument();
   });
 });

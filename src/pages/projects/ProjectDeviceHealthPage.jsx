@@ -9,13 +9,18 @@ import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import ObservabilityFilterChips from "../../components/observability/ObservabilityFilterChips";
+import ObservabilityFilterPanel from "../../components/observability/ObservabilityFilterPanel";
 import ObservabilityConnectionStatus from "../../components/observability/ObservabilityConnectionStatus";
 import ProjectContextNav from "../../components/projects/ProjectContextNav";
+import { useObservabilityFilters } from "../../hooks/useObservabilityFilters";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
   getProjectDeviceHealth,
   normalizeProjectDeviceHealthError
 } from "../../services/projectDeviceHealthService";
+import { OBSERVABILITY_STATUS_OPTIONS } from "../../config/observabilityFilterConfig";
+import { normalizeSearchText } from "../../utils/observabilityFilterParams";
 
 function formatDateTime(value) {
   if (!value) {
@@ -30,6 +35,16 @@ function formatDateTime(value) {
 
 function normalizeText(value, fallback = "Unavailable") {
   return value === null || value === undefined || value === "" ? fallback : value;
+}
+
+function matchesSearch(search, values) {
+  const query = normalizeSearchText(search).toLowerCase();
+
+  if (!query) {
+    return true;
+  }
+
+  return values.some(value => String(value ?? "").toLowerCase().includes(query));
 }
 
 function mapHealthVariant(value) {
@@ -217,7 +232,16 @@ export default function ProjectDeviceHealthPage() {
   const [workspaceError, setWorkspaceError] = useState(null);
   const [deviceSummary, setDeviceSummary] = useState(null);
   const [deviceError, setDeviceError] = useState(null);
-  const [sortDirection, setSortDirection] = useState("ASC");
+  const {
+    filters,
+    setSearch,
+    setDeviceHealthStatuses,
+    setSortDirection,
+    removeFilter,
+    clearFilters,
+    hasActiveFilters,
+    activeFilterCount
+  } = useObservabilityFilters({ defaultSortDirection: "ASC" });
 
   useEffect(() => {
     let active = true;
@@ -273,9 +297,68 @@ export default function ProjectDeviceHealthPage() {
   });
 
   const devices = useMemo(
-    () => sortDevices(Array.isArray(deviceSummary?.devices) ? deviceSummary.devices : [], sortDirection),
-    [deviceSummary?.devices, sortDirection]
+    () => sortDevices(
+      Array.isArray(deviceSummary?.devices) ? deviceSummary.devices : [],
+      filters.sortDirection
+    ),
+    [deviceSummary?.devices, filters.sortDirection]
   );
+
+  const filteredDevices = useMemo(() => devices.filter(device => {
+    const healthStatus = normalizeText(device.healthStatus, "UNKNOWN");
+    const matchesStatus = !filters.deviceHealthStatuses.length
+      || filters.deviceHealthStatuses.includes(healthStatus);
+
+    return matchesSearch(filters.search, [
+      device.deviceId,
+      device.deviceName,
+      device.deviceType,
+      device.ipAddress,
+      device.currentStatus,
+      device.healthStatus,
+      device.availability,
+      device.latestHeartbeat,
+      device.latestTelemetryReceivedAt,
+      device.lastUpdatedAt,
+      device.dataState
+    ]) && matchesStatus;
+  }), [devices, filters.deviceHealthStatuses, filters.search]);
+
+  const deviceFilterChips = useMemo(() => {
+    const chips = [];
+
+    if (filters.search) {
+      chips.push({
+        id: "search",
+        label: "Search",
+        value: filters.search,
+        onRemove: () => removeFilter("search")
+      });
+    }
+
+    filters.deviceHealthStatuses.forEach(status => {
+      chips.push({
+        id: `device-status-${status}`,
+        label: "Device health",
+        value: status,
+        status: mapHealthVariant(status),
+        onRemove: () => setDeviceHealthStatuses(
+          filters.deviceHealthStatuses.filter(entry => entry !== status)
+        )
+      });
+    });
+
+    if (filters.sortDirection !== "ASC") {
+      chips.push({
+        id: "sort",
+        label: "Sort",
+        value: filters.sortDirection,
+        onRemove: () => setSortDirection("ASC")
+      });
+    }
+
+    return chips;
+  }, [filters.search, filters.deviceHealthStatuses, filters.sortDirection, removeFilter, setDeviceHealthStatuses, setSortDirection]);
 
   const summary = deviceSummary || {
     totalDevices: 0,
@@ -348,6 +431,7 @@ export default function ProjectDeviceHealthPage() {
     }
 
     const isEmpty = !summary.totalDevices;
+    const isFilteredEmpty = summary.totalDevices > 0 && !filteredDevices.length;
 
     return (
       <>
@@ -371,18 +455,6 @@ export default function ProjectDeviceHealthPage() {
         </div>
 
         <div className="project-device-health-toolbar">
-          <label>
-            <span>Sort direction</span>
-            <select
-              aria-label="Sort direction"
-              value={sortDirection}
-              onChange={event => setSortDirection(event.target.value)}
-            >
-              <option value="ASC">Ascending</option>
-              <option value="DESC">Descending</option>
-            </select>
-          </label>
-
           <button
             type="button"
             className="project-device-health-refresh-button"
@@ -394,6 +466,31 @@ export default function ProjectDeviceHealthPage() {
             {isRefreshing ? "Refreshing..." : "Refresh Devices"}
           </button>
         </div>
+
+        <ObservabilityFilterPanel
+          title="Refine devices"
+          searchEnabled
+          searchPlaceholder="Search devices, IDs, types, IPs, status or data state"
+          searchValue={filters.search}
+          onSearchChange={value => setSearch(value)}
+          deviceHealthStatuses={filters.deviceHealthStatuses}
+          deviceHealthStatusOptions={OBSERVABILITY_STATUS_OPTIONS.DEVICE.map(value => ({ value, label: value }))}
+          onDeviceHealthStatusesChange={setDeviceHealthStatuses}
+          sortDirection={filters.sortDirection}
+          sortOptions={[
+            { value: "ASC", label: "Ascending" },
+            { value: "DESC", label: "Descending" }
+          ]}
+          onSortDirectionChange={value => setSortDirection(value)}
+          activeFilterCount={activeFilterCount}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+        />
+
+        <ObservabilityFilterChips
+          chips={deviceFilterChips}
+          onClearAll={clearFilters}
+        />
 
         <ObservabilityConnectionStatus
           status={connectionState}
@@ -437,11 +534,27 @@ export default function ProjectDeviceHealthPage() {
                   </button>
                 )}
               />
+            ) : isFilteredEmpty ? (
+              <EmptyState
+                title="No matching devices"
+                message="Clear filters to view the linked devices for this project."
+                action={(
+                  <button
+                    type="button"
+                    className="project-device-health-refresh-button"
+                    onClick={() => {
+                      void refreshNow().catch(() => {});
+                    }}
+                  >
+                    Refresh Devices
+                  </button>
+                )}
+              />
             ) : (
               <>
-                <DeviceTable devices={devices} />
+                <DeviceTable devices={filteredDevices} />
                 <div className="project-device-health-card-list">
-                  {devices.map(device => (
+                  {filteredDevices.map(device => (
                     <DeviceCard key={device.deviceId} device={device} />
                   ))}
                 </div>

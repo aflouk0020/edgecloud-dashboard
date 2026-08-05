@@ -1,7 +1,8 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 import { AuthProvider } from "../../context/AuthContext";
 import ProjectServiceHealthPage from "./ProjectServiceHealthPage";
@@ -235,16 +236,20 @@ describe("ProjectServiceHealthPage", () => {
     expect(rows()[1]).toHaveTextContent("service-a");
     expect(rows()[2]).toHaveTextContent("service-c");
 
-    fireEvent.change(screen.getByLabelText("Sort direction"), {
-      target: { value: "DESC" }
+    cleanup();
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectServiceHealth.mockResolvedValue(healthSummary());
+    renderPage("/projects/project-1/services?sort=DESC");
+
+    await screen.findByRole("table");
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Sort" })).toHaveValue("DESC");
     });
 
-    await waitFor(() => {
-      expect(rows()[0]).toHaveTextContent("api-service");
-      expect(rows()[0]).toHaveTextContent("service-a");
-      expect(rows()[1]).toHaveTextContent("service-c");
-      expect(rows()[2]).toHaveTextContent("alpha-service");
-    });
+    expect(rows()[0]).toHaveTextContent("api-service");
+    expect(rows()[0]).toHaveTextContent("service-a");
+    expect(rows()[1]).toHaveTextContent("service-c");
+    expect(rows()[2]).toHaveTextContent("alpha-service");
   });
 
   it("shows empty, partial, unavailable and NO_DATA states", async () => {
@@ -291,6 +296,55 @@ describe("ProjectServiceHealthPage", () => {
     expect(screen.getAllByText("zeta-service").length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("Current health status UNAVAILABLE")).toHaveLength(2);
     expect(screen.getAllByLabelText("Service data state NO_DATA")).toHaveLength(2);
+  });
+
+  it("filters services client-side without extra refresh requests", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectServiceHealth.mockResolvedValue(healthSummary());
+
+    renderPage();
+
+    expect((await screen.findAllByText("alpha-service")).length).toBeGreaterThan(0);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByPlaceholderText("Search services, IDs, URLs, status or data state"),
+      "service-c"
+    );
+
+    await waitFor(() => {
+      const rows = Array.from(document.querySelectorAll(".project-service-health-table tbody tr"));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveTextContent("service-c");
+      expect(screen.queryAllByText("alpha-service").length).toBe(0);
+    });
+
+    expect(getProjectServiceHealth).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("shows shared filter chips and clears them", async () => {
+    getProjectWorkspace.mockResolvedValue(workspace());
+    getProjectServiceHealth.mockResolvedValue(healthSummary());
+
+    renderPage();
+
+    expect((await screen.findAllByText("alpha-service")).length).toBeGreaterThan(0);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByPlaceholderText("Search services, IDs, URLs, status or data state"),
+      "api"
+    );
+    fireEvent.change(screen.getByLabelText("Service health"), { target: { value: "DEGRADED" } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Remove Search" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Remove Service health" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+    await waitFor(() => expect(screen.getByPlaceholderText("Search services, IDs, URLs, status or data state")).toHaveValue(""));
+    expect(screen.queryByRole("button", { name: "Remove Search" })).not.toBeInTheDocument();
   });
 
   it("shows API error and unauthorised states", async () => {
