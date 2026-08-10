@@ -1,4 +1,3 @@
-import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -33,6 +32,14 @@ describe("ProjectContextNav", () => {
     expect(screen.getByRole("link", { name: "Metrics" })).toHaveAttribute(
       "href",
       "/projects/project-1/metrics?q=alpha&service=service-1"
+    );
+    expect(screen.getByRole("link", { name: "Alert Rules" })).toHaveAttribute(
+      "href",
+      "/projects/project-1/alert-rules?q=alpha&service=service-1"
+    );
+    expect(screen.getByRole("link", { name: "Alerts" })).toHaveAttribute(
+      "href",
+      "/projects/project-1/alerts?q=alpha&service=service-1"
     );
     expect(screen.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute(
       "href",
