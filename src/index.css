@@ -1299,6 +1299,11 @@ input:focus {
   border-left: 4px solid #dc2626;
 }
 
+.project-alert-table tr.acknowledged td:first-child,
+.project-alert-card.acknowledged {
+  border-left: 4px solid #2563eb;
+}
+
 .project-alert-table td strong,
 .project-alert-table td small,
 .project-alert-card header span {
@@ -1390,6 +1395,61 @@ input:focus {
   overflow-wrap: anywhere;
 }
 
+.project-alert-actions {
+  display: flex;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.project-alert-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.project-alert-feedback,
+.project-alert-inline-error {
+  margin: 14px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.project-alert-feedback.error,
+.project-alert-inline-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.project-alert-ownership-history {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.project-alert-ownership-history ol {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-alert-ownership-history li {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-left: 3px solid #2563eb;
+  background: var(--bg-soft, #f8fafc);
+}
+
+.project-alert-ownership-history li span,
+.project-alert-ownership-history li time {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
 @media (max-width: 900px) {
   .project-alert-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1446,8 +1506,13 @@ input:focus {
   }
 
   .project-alert-pagination button,
-  .project-alert-card button {
+  .project-alert-card button,
+  .project-alert-actions button {
     width: 100%;
+  }
+
+  .project-alert-actions {
+    flex-direction: column;
   }
 }
 
