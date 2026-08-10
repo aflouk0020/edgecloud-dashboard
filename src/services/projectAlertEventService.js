@@ -37,11 +37,24 @@ export function getProjectAlert(projectId, alertId) {
   return apiRequest(path(projectId, alertId)).then(normalizeAlert);
 }
 
+export function acknowledgeAlert(projectId, alertId) {
+  return apiRequest(`${path(projectId, alertId)}/acknowledgement`, { method: "POST" }).then(normalizeAlert);
+}
+
+export function releaseAlertOwnership(projectId, alertId) {
+  return apiRequest(`${path(projectId, alertId)}/acknowledgement`, { method: "DELETE" }).then(normalizeAlert);
+}
+
+export function getAlertOwnershipHistory(projectId, alertId) {
+  return apiRequest(`${path(projectId, alertId)}/ownership-history`);
+}
+
 export function normalizeProjectAlertEventError(error) {
   const status = error?.status || Number(String(error?.message || "").match(/(\d{3})/)?.[1] || 0);
   if (status === 401) return { status, title: "Authentication required", message: "Please sign in again to view project alerts." };
   if (status === 403) return { status, title: "Access denied", message: "You do not have permission to view alerts for this project." };
   if (status === 404) return { status, title: "Alert not found", message: "The requested project alert could not be found." };
+  if (status === 409) return { status, title: "Alert ownership changed", message: "This alert changed while you were viewing it. Its current state has been refreshed." };
   if (status === 422) return { status, title: "Archived project", message: "Alert history is unavailable for this archived project." };
   return { status, title: "Unable to load project alerts", message: "Please try again once the Alert Service is available." };
 }

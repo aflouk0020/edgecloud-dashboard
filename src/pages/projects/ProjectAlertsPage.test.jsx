@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProjectAlertsPage from "./ProjectAlertsPage";
 import { AuthProvider } from "../../context/AuthContext";
 import { getProjectWorkspace } from "../../services/projectWorkspaceService";
-import { getProjectAlert, listProjectAlerts } from "../../services/projectAlertEventService";
+import { acknowledgeAlert, getAlertOwnershipHistory, getProjectAlert, listProjectAlerts, releaseAlertOwnership } from "../../services/projectAlertEventService";
 
 vi.mock("../../services/projectWorkspaceService", () => ({
   getProjectWorkspace: vi.fn(),
@@ -18,12 +18,15 @@ vi.mock("../../services/projectWorkspaceService", () => ({
 }));
 
 vi.mock("../../services/projectAlertEventService", () => ({
+  acknowledgeAlert: vi.fn(),
+  getAlertOwnershipHistory: vi.fn(),
   getProjectAlert: vi.fn(),
   listProjectAlerts: vi.fn(),
+  releaseAlertOwnership: vi.fn(),
   normalizeProjectAlertEventError: vi.fn(error => ({
     status: error.status,
-    title: error.status === 401 ? "Authentication required" : error.status === 403 ? "Access denied" : "Unable to load project alerts",
-    message: "Project alerts unavailable"
+    title: error.status === 401 ? "Authentication required" : error.status === 403 ? "Access denied" : error.status === 409 ? "Alert ownership changed" : "Unable to load project alerts",
+    message: error.status === 409 ? "This alert changed while you were viewing it. Its current state has been refreshed." : "Project alerts unavailable"
   }))
 }));
 
@@ -45,9 +48,13 @@ function page(alerts = [], overrides = {}) {
   return { alerts, page: 0, size: 20, totalElements: alerts.length, totalPages: alerts.length ? 1 : 0, ...overrides };
 }
 
-function renderPage() {
-  localStorage.setItem("token", "token");
-  localStorage.setItem("role", "VIEWER");
+function tokenFor(userId) {
+  return `header.${btoa(JSON.stringify({ sub: userId })).replaceAll("=", "")}.signature`;
+}
+
+function renderPage(role = "VIEWER", userId = "11111111-1111-4111-8111-111111111111") {
+  localStorage.setItem("token", tokenFor(userId));
+  localStorage.setItem("role", role);
   return render(<AuthProvider><MemoryRouter initialEntries={["/projects/project-1/alerts"]}><Routes><Route path="/projects/:projectId/alerts" element={<ProjectAlertsPage />} /></Routes></MemoryRouter></AuthProvider>);
 }
 
@@ -55,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getProjectWorkspace.mockResolvedValue(workspace());
   listProjectAlerts.mockResolvedValue(page([]));
+  getAlertOwnershipHistory.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -92,6 +100,19 @@ describe("ProjectAlertsPage", () => {
     expect(listProjectAlerts).toHaveBeenCalledWith("project-1", expect.objectContaining({ page: 0, size: 20, sortDirection: "DESC" }));
   });
 
+  it("renders ACKNOWLEDGED status and owner label or UUID fallback in table and cards", async () => {
+    listProjectAlerts.mockResolvedValue(page([
+      alert({ id: "alert-2", status: "ACKNOWLEDGED", ownerUserId: "22222222-2222-4222-8222-222222222222", ownerDisplayName: "Morgan Operator", acknowledgedAt: "2026-08-10T10:01:00Z" }),
+      alert({ id: "alert-3", status: "ACKNOWLEDGED", ownerUserId: "33333333-3333-4333-8333-333333333333", ownerDisplayName: null })
+    ]));
+    renderPage();
+    expect(await screen.findAllByText("◆ ACKNOWLEDGED")).toHaveLength(4);
+    expect(screen.getAllByText("Morgan Operator").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("User 33333333-3333-4333-8333-333333333333").length).toBeGreaterThan(0);
+    expect(document.querySelector("tr.acknowledged")).toBeInTheDocument();
+    expect(document.querySelector("article.acknowledged")).toBeInTheDocument();
+  });
+
   it("forwards filters, preserves them during pagination, resets page, and clears filters", async () => {
     const user = userEvent.setup();
     listProjectAlerts.mockResolvedValue(page([alert()], { totalElements: 40, totalPages: 2 }));
@@ -100,12 +121,23 @@ describe("ProjectAlertsPage", () => {
     await user.selectOptions(screen.getByLabelText("Alert severity"), "HIGH");
     await user.selectOptions(screen.getByLabelText("Alert source type"), "DEVICE");
     await user.type(screen.getByLabelText("Alert source ID"), "device-1");
+    await user.type(screen.getByLabelText("Alert owner ID"), "11111111-1111-4111-8111-111111111111");
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await waitFor(() => expect(listProjectAlerts).toHaveBeenCalledWith("project-1", expect.objectContaining({ page: 1, severity: "HIGH", sourceType: "DEVICE", sourceId: "device-1" })));
+    await waitFor(() => expect(listProjectAlerts).toHaveBeenCalledWith("project-1", expect.objectContaining({ page: 1, severity: "HIGH", sourceType: "DEVICE", sourceId: "device-1", ownerId: "11111111-1111-4111-8111-111111111111" })));
     await user.selectOptions(screen.getByLabelText("Alert status"), "OPEN");
     await waitFor(() => expect(listProjectAlerts).toHaveBeenCalledWith("project-1", expect.objectContaining({ page: 0, status: "OPEN" })));
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
-    await waitFor(() => expect(listProjectAlerts).toHaveBeenCalledWith("project-1", expect.objectContaining({ page: 0, status: "", severity: "", sourceType: "", sourceId: "" })));
+    await waitFor(() => expect(listProjectAlerts).toHaveBeenCalledWith("project-1", expect.objectContaining({ page: 0, status: "", severity: "", sourceType: "", sourceId: "", ownerId: "" })));
+  });
+
+  it("validates owner UUID before issuing a filtered request", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("No project alert history");
+    const callsBefore = listProjectAlerts.mock.calls.length;
+    await user.type(screen.getByLabelText("Alert owner ID"), "not-a-uuid");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid owner UUID.");
+    expect(listProjectAlerts).toHaveBeenCalledTimes(callsBefore);
   });
 
   it("shows filtered-empty state and forwards date filters", async () => {
@@ -145,6 +177,91 @@ describe("ProjectAlertsPage", () => {
     renderPage();
     await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
     expect(await screen.findByText("Access denied")).toBeInTheDocument();
+  });
+
+  it("loads ownership history without blocking detail when history fails", async () => {
+    const user = userEvent.setup();
+    const current = alert({ status: "ACKNOWLEDGED", ownerUserId: "11111111-1111-4111-8111-111111111111" });
+    listProjectAlerts.mockResolvedValue(page([current]));
+    getProjectAlert.mockResolvedValue(current);
+    getAlertOwnershipHistory.mockResolvedValueOnce([{ id: "history-1", action: "ACKNOWLEDGED", actorUserId: current.ownerUserId, ownerUserId: current.ownerUserId, changedAt: "2026-08-10T10:01:00Z" }]);
+    renderPage("OPERATOR");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Ownership History")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("ACKNOWLEDGED").length).toBeGreaterThan(0);
+    expect(within(dialog).getByRole("button", { name: "Release Ownership" })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByLabelText("Close alert detail"));
+    getAlertOwnershipHistory.mockRejectedValueOnce({ status: 503 });
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    expect(await screen.findByText("Ownership history is temporarily unavailable.")).toBeInTheDocument();
+    expect(screen.getAllByText("CPU saturation").length).toBeGreaterThan(0);
+  });
+
+  it("acknowledges an OPEN alert once, refreshes state, and hides controls from VIEWER", async () => {
+    const user = userEvent.setup();
+    const open = alert();
+    const acknowledged = alert({ status: "ACKNOWLEDGED", ownerUserId: "11111111-1111-4111-8111-111111111111" });
+    listProjectAlerts.mockResolvedValue(page([open]));
+    getProjectAlert.mockResolvedValue(open);
+    let resolveMutation;
+    acknowledgeAlert.mockReturnValue(new Promise(resolve => { resolveMutation = resolve; }));
+    renderPage("OPERATOR");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    const action = await screen.findByRole("button", { name: "Acknowledge" });
+    await user.click(action);
+    expect(screen.getByRole("button", { name: "Acknowledging..." })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Acknowledging..." }));
+    expect(acknowledgeAlert).toHaveBeenCalledTimes(1);
+    resolveMutation(acknowledged);
+    expect(await screen.findByText("Alert acknowledged successfully.")).toBeInTheDocument();
+
+    cleanup();
+    getProjectAlert.mockResolvedValue(open);
+    renderPage("VIEWER");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument();
+  });
+
+  it("handles acknowledge conflict and refreshes the current alert", async () => {
+    const user = userEvent.setup();
+    listProjectAlerts.mockResolvedValue(page([alert()]));
+    getProjectAlert.mockResolvedValue(alert());
+    acknowledgeAlert.mockRejectedValue({ status: 409 });
+    renderPage("PROJECT_ADMIN");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    await user.click(await screen.findByRole("button", { name: "Acknowledge" }));
+    expect(await screen.findByText(/alert changed while you were viewing/i)).toBeInTheDocument();
+    await waitFor(() => expect(getProjectAlert).toHaveBeenCalledTimes(2));
+  });
+
+  it("releases only for the current owner and handles stale release responses", async () => {
+    const user = userEvent.setup();
+    const owned = alert({ status: "ACKNOWLEDGED", ownerUserId: "11111111-1111-4111-8111-111111111111" });
+    const released = alert({ status: "OPEN", ownerUserId: null, acknowledgedAt: null });
+    listProjectAlerts.mockResolvedValue(page([owned]));
+    getProjectAlert.mockResolvedValue(owned);
+    releaseAlertOwnership.mockResolvedValueOnce(released);
+    renderPage("ADMIN");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    await user.click(await screen.findByRole("button", { name: "Release Ownership" }));
+    expect(await screen.findByText("Alert ownership released successfully.")).toBeInTheDocument();
+
+    cleanup();
+    getProjectAlert.mockResolvedValue(owned);
+    renderPage("OPERATOR", "22222222-2222-4222-8222-222222222222");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    expect(screen.queryByRole("button", { name: "Release Ownership" })).not.toBeInTheDocument();
+
+    cleanup();
+    getProjectAlert.mockResolvedValue(owned);
+    releaseAlertOwnership.mockRejectedValueOnce({ status: 403 });
+    renderPage("OPERATOR");
+    await user.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    await user.click(await screen.findByRole("button", { name: "Release Ownership" }));
+    expect(await screen.findByText("Project alerts unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(getProjectAlert.mock.calls.length).toBeGreaterThan(3));
   });
 
   it("shows API authorization errors and supports retry", async () => {
