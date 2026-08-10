@@ -2398,6 +2398,257 @@ input:focus {
   color: #f8fafc;
 }
 
+.project-alert-rules-page {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.project-alert-rules-header,
+.project-alert-rules-context,
+.alert-rule-card-header,
+.alert-rule-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.project-alert-rules-header {
+  margin: 24px 0 16px;
+}
+
+.project-alert-rules-header h2 {
+  margin: 4px 0;
+}
+
+.project-alert-rules-header p:last-child {
+  margin: 0;
+}
+
+.project-alert-rules-context {
+  justify-content: flex-start;
+  padding: 12px 0;
+  border-block: 1px solid var(--border);
+}
+
+.project-alert-rules-context span {
+  color: var(--text);
+}
+
+.project-alert-rules-context strong {
+  margin-left: auto;
+  color: var(--text-h);
+}
+
+.alert-rule-feedback {
+  margin: 16px 0;
+  padding: 10px 12px;
+  border: 1px solid #75b798;
+  color: #23623e;
+  background: #edf8f1;
+}
+
+.alert-rule-table-wrap {
+  overflow-x: auto;
+  margin-top: 20px;
+}
+
+.alert-rule-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg);
+}
+
+.alert-rule-table th,
+.alert-rule-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.alert-rule-table th {
+  color: var(--text);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.alert-rule-table td strong,
+.alert-rule-table td small {
+  display: block;
+}
+
+.alert-rule-table td small {
+  max-width: 220px;
+  margin-top: 4px;
+  color: var(--text);
+}
+
+.alert-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.alert-rule-actions button,
+.alert-rule-dialog-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.alert-rule-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.alert-rule-card-list {
+  display: none;
+}
+
+.alert-rule-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(8 6 13 / 55%);
+}
+
+.alert-rule-dialog {
+  width: min(680px, 100%);
+  max-height: calc(100svh - 40px);
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.alert-rule-dialog h3 {
+  margin-top: 0;
+  color: var(--text-h);
+}
+
+.alert-rule-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.alert-rule-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-h);
+  font-size: 0.9rem;
+}
+
+.alert-rule-form label:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.alert-rule-form input:not([type="checkbox"]),
+.alert-rule-form select,
+.alert-rule-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
+.alert-rule-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.alert-rule-enabled-input {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.alert-rule-form-error {
+  margin: 12px 0;
+  color: #a32f38;
+}
+
+.alert-rule-dialog-actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+@media (max-width: 700px) {
+  .project-alert-rules-page {
+    padding: 16px;
+  }
+
+  .project-alert-rules-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .project-alert-rules-header .primary-action {
+    width: 100%;
+  }
+
+  .alert-rule-table-wrap {
+    display: none;
+  }
+
+  .alert-rule-card-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .alert-rule-card {
+    padding: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .alert-rule-card p {
+    margin: 8px 0 14px;
+  }
+
+  .alert-rule-card dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 16px;
+  }
+
+  .alert-rule-card dt {
+    color: var(--text);
+    font-size: 0.78rem;
+  }
+
+  .alert-rule-card dd {
+    margin: 2px 0 0;
+    color: var(--text-h);
+  }
+
+  .alert-rule-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alert-rule-form label:nth-child(3) {
+    grid-column: auto;
+  }
+}
+
 .project-device-health-page {
   width: min(1120px, 100%);
   margin: 0 auto;

@@ -8,6 +8,7 @@ import ProjectWorkspacePage from "./pages/projects/ProjectWorkspacePage";
 import ProjectServiceHealthPage from "./pages/projects/ProjectServiceHealthPage";
 import ProjectDeviceHealthPage from "./pages/projects/ProjectDeviceHealthPage";
 import ProjectHistoricalMetricsPage from "./pages/projects/ProjectHistoricalMetricsPage";
+import ProjectAlertRulesPage from "./pages/projects/ProjectAlertRulesPage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
 import AlertsPage from "./pages/alerts/AlertsPage";
 
@@ -99,6 +100,15 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectHistoricalMetricsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId/alert-rules"
+        element={
+          <ProtectedRoute>
+            <ProjectAlertRulesPage />
           </ProtectedRoute>
         }
       />

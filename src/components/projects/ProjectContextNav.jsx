@@ -4,7 +4,8 @@ const NAV_ITEMS = [
   { label: "Observability", key: "workspace", route: "workspace" },
   { label: "Services", key: "services", route: "services" },
   { label: "Devices", key: "devices", route: "devices" },
-  { label: "Metrics", key: "metrics", route: "metrics" }
+  { label: "Metrics", key: "metrics", route: "metrics" },
+  { label: "Alert Rules", key: "alert-rules", route: "alert-rules" }
 ];
 
 function ProjectContextNav({ active = "workspace" }) {
