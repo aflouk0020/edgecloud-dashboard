@@ -10,6 +10,7 @@ import ProjectDeviceHealthPage from "./pages/projects/ProjectDeviceHealthPage";
 import ProjectHistoricalMetricsPage from "./pages/projects/ProjectHistoricalMetricsPage";
 import ProjectAlertRulesPage from "./pages/projects/ProjectAlertRulesPage";
 import ProjectAlertsPage from "./pages/projects/ProjectAlertsPage";
+import ProjectMaintenanceWindowsPage from "./pages/projects/ProjectMaintenanceWindowsPage";
 import TelemetryPage from "./pages/telemetry/TelemetryPage";
 import AlertsPage from "./pages/alerts/AlertsPage";
 
@@ -110,6 +111,15 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectAlertRulesPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId/maintenance"
+        element={
+          <ProtectedRoute>
+            <ProjectMaintenanceWindowsPage />
           </ProtectedRoute>
         }
       />

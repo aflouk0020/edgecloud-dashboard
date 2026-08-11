@@ -35,6 +35,22 @@
 .escalation-policy-panel form { display:grid; gap:.75rem; }
 .escalation-policy-panel fieldset { display:flex; gap:1rem; border:1px solid #e5e7eb; border-radius:8px; }
 .escalation-policy-panel label { display:grid; gap:.25rem; }
+.maintenance-page { display:grid; gap:1rem; }
+.maintenance-header,.maintenance-card header,.maintenance-actions { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.maintenance-list { display:grid; gap:1rem; }
+.maintenance-card { padding:1.25rem; border:1px solid #d8dee9; border-radius:12px; background:#fff; }
+.maintenance-card h3,.maintenance-card p { margin:.2rem 0; }
+.maintenance-card dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; }
+.maintenance-card dt { color:#637083; font-size:.8rem; }
+.maintenance-card dd { margin:.2rem 0 0; font-weight:600; overflow-wrap:anywhere; }
+.maintenance-dialog-backdrop { position:fixed; inset:0; display:grid; place-items:center; padding:1rem; background:#172033aa; z-index:50; }
+.maintenance-dialog { width:min(720px,100%); max-height:90vh; overflow:auto; padding:1.5rem; border-radius:14px; background:#fff; }
+.maintenance-form { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.maintenance-form label { display:grid; gap:.3rem; }
+.maintenance-form input,.maintenance-form select,.maintenance-form textarea { padding:.65rem; border:1px solid #b9c2cf; border-radius:7px; }
+.maintenance-reason,.maintenance-form .maintenance-actions { grid-column:1/-1; }
+.suppression-history { margin-top:1rem; padding-top:1rem; border-top:1px solid #e5e7eb; }
+.suppression-history li { display:grid; grid-template-columns:2fr 2fr 1fr 1fr; gap:.75rem; padding:.6rem 0; border-bottom:1px solid #eef1f5; }
 
 @media (prefers-color-scheme: dark) {
   :root {
