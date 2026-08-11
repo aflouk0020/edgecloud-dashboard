@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import NotificationBell from "../notifications/NotificationBell";
 
 function Header() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ function Header() {
       </div>
 
       <div className="header-right">
+        <NotificationBell />
         <div className="header-info">
           <span className="header-label">Role</span>
           <strong>{role || "ADMIN"}</strong>
