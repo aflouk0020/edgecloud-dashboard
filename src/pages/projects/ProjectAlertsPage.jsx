@@ -8,6 +8,8 @@ import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
 import StatusBadge from "../../components/ui/StatusBadge";
+import EscalationPolicyPanel from "../../components/alerts/EscalationPolicyPanel";
+import { getAlertEscalationHistory } from "../../services/escalationPolicyService";
 import { useAuth } from "../../context/AuthContext";
 import { getProjectWorkspace, normalizeWorkspaceError } from "../../services/projectWorkspaceService";
 import {
@@ -77,7 +79,7 @@ function OwnershipHistory({ state }) {
   </section>;
 }
 
-function AlertDetail({ alert, loading, error, history, canMutate, userId, pending, feedback, onClose, onAcknowledge, onRelease }) {
+function AlertDetail({ alert, loading, error, history, escalationHistory, canMutate, userId, pending, feedback, onClose, onAcknowledge, onRelease }) {
   const canAcknowledge = canMutate && alert?.status === "OPEN";
   const canRelease = canMutate && alert?.status === "ACKNOWLEDGED" && userId && userId === alert.ownerUserId;
   return (
@@ -106,8 +108,10 @@ function AlertDetail({ alert, loading, error, history, canMutate, userId, pendin
             <div><dt>Triggered</dt><dd>{formatDate(alert.triggeredAt)}</dd></div><div><dt>Last observed</dt><dd>{formatDate(alert.lastObservedAt)}</dd></div>
             <div><dt>Resolved</dt><dd>{formatDate(alert.resolvedAt, "Not resolved")}</dd></div><div><dt>Created</dt><dd>{formatDate(alert.createdAt)}</dd></div>
             <div><dt>Updated</dt><dd>{formatDate(alert.updatedAt)}</dd></div>
+            <div><dt>Escalation level</dt><dd>{alert.escalationLevel || "Not escalated"}</dd></div><div><dt>Last escalated</dt><dd>{formatDate(alert.escalatedAt,"Not escalated")}</dd></div>
           </dl>
           <OwnershipHistory state={history} />
+          <section className="project-alert-ownership-history"><h4>Escalation timeline</h4>{escalationHistory?.loading&&<LoadingState message="Loading escalation history..."/>}{!escalationHistory?.loading&&!(escalationHistory?.entries?.length)&&<p>No escalations recorded.</p>}{escalationHistory?.entries?.length>0&&<ol>{escalationHistory.entries.map(e=><li key={e.id}><strong>Level {e.levelNumber} · {label(e.reason)}</strong><span>{e.previousSeverity} → {e.resultingSeverity}</span><time dateTime={e.escalatedAt}>{formatDate(e.escalatedAt)}</time></li>)}</ol>}</section>
         </>}
       </aside>
     </div>
@@ -165,13 +169,14 @@ export default function ProjectAlertsPage() {
   function clearFilters() { setFilters(DEFAULT_FILTERS); setPage(0); }
 
   function loadDetail(alertId) {
-    setDetailState({ loading: true, alert: null, error: null, history: { loading: true, entries: [], error: null }, pending: false, feedback: null });
+    setDetailState({ loading: true, alert: null, error: null, history: { loading: true, entries: [], error: null }, escalationHistory:{loading:true,entries:[]}, pending: false, feedback: null });
     getProjectAlert(projectId, alertId)
       .then(alert => setDetailState(current => ({ ...current, loading: false, alert })))
       .catch(error => setDetailState(current => ({ ...current, loading: false, error: normalizeProjectAlertEventError(error), history: { loading: false, entries: [], error: null } })));
     getAlertOwnershipHistory(projectId, alertId)
       .then(entries => setDetailState(current => current ? ({ ...current, history: { loading: false, entries, error: null } }) : current))
       .catch(() => setDetailState(current => current ? ({ ...current, history: { loading: false, entries: [], error: true } }) : current));
+    getAlertEscalationHistory(projectId,alertId).then(entries=>setDetailState(current=>current?({...current,escalationHistory:{loading:false,entries}}):current)).catch(()=>setDetailState(current=>current?({...current,escalationHistory:{loading:false,entries:[]}}):current));
   }
 
   async function mutateOwnership(operation, successMessage) {
@@ -200,6 +205,7 @@ export default function ProjectAlertsPage() {
   return <DashboardLayout><section className="project-alerts-page">
     <ProjectContextNav active="alerts" />
     <PageHero eyebrow={workspace.projectName || "Project"} title="Alert History" description="Operational evidence and ownership for triggered and resolved project alerts." />
+    <EscalationPolicyPanel projectId={projectId} canManage={role==="ADMIN"||workspace.callerProjectRole==="PROJECT_ADMIN"}/>
     {workspace.projectStatus === "ARCHIVED" && <div className="project-alert-archive" role="status"><strong>Archived project</strong><span>Historical alerts are read-only.</span></div>}
     <form className="project-alert-filters" onSubmit={event => event.preventDefault()}>
       <label>Status<select aria-label="Alert status" value={filters.status} onChange={event => updateFilter("status", event.target.value)}><option value="">All statuses</option><option value="OPEN">OPEN</option><option value="ACKNOWLEDGED">ACKNOWLEDGED</option><option value="RESOLVED">RESOLVED</option></select></label>
