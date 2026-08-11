@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { label: "Devices", key: "devices", route: "devices" },
   { label: "Metrics", key: "metrics", route: "metrics" },
   { label: "Alert Rules", key: "alert-rules", route: "alert-rules" },
+  { label: "Maintenance", key: "maintenance", route: "maintenance" },
   { label: "Alerts", key: "alerts", route: "alerts" }
 ];
 
