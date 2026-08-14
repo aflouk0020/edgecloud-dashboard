@@ -1,9 +1,11 @@
-const AUTH_URL = "http://localhost:8081";
+import API_BASE_URL from "../config/apiConfig";
+
+const AUTH_URL = `${API_BASE_URL}/api/v1/auth`;
 
 export async function loginUser(email, password) {
-  const response = await fetch(
-    `${AUTH_URL}/login`,
-    {
+  let response;
+  try {
+    response = await fetch(`${AUTH_URL}/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -12,14 +14,19 @@ export async function loginUser(email, password) {
         email,
         password
       })
-    }
-  );
+    });
+  } catch {
+    throw new Error("Unable to reach the authentication service. Check that the API Gateway is running.");
+  }
 
-  const data = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : null;
 
   if (!response.ok) {
     throw new Error(
-      data.message || "Login failed"
+      data?.message || `Login failed (${response.status})`
     );
   }
 

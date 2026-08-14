@@ -40,9 +40,10 @@ function LoginPage() {
 
       <form onSubmit={handleSubmit}>
         <div>
-          <label>Email</label>
+          <label htmlFor="login-email">Email</label>
           <br />
           <input
+            id="login-email"
             type="email"
             value={email}
             onChange={(event) =>
@@ -53,9 +54,10 @@ function LoginPage() {
         </div>
 
         <div>
-          <label>Password</label>
+          <label htmlFor="login-password">Password</label>
           <br />
           <input
+            id="login-password"
             type="password"
             value={password}
             onChange={(event) =>
@@ -72,7 +74,7 @@ function LoginPage() {
         </button>
 
         {error && (
-          <p>{error}</p>
+          <p role="alert">{error}</p>
         )}
       </form>
     </div>
