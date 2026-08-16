@@ -16,7 +16,7 @@ const navItems = [
     label: "Device Inventory",
     path: "/devices",
     icon: "▣",
-    roles: ["ADMIN", "OPERATOR"]
+    roles: ["ADMIN", "OPERATOR", "PROJECT_ADMIN"]
   },
   {
     label: "Telemetry",

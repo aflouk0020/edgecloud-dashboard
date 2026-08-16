@@ -1,12 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getDeviceInventory } from "../../services/deviceService";
+import { getAccessibleProjects, getDeviceGroups, getDeviceInventory, getDeviceTags } from "../../services/deviceService";
 import DevicesPage from "./DevicesPage";
 
 vi.mock("../../services/deviceService", () => ({
   getDeviceInventory: vi.fn(), deactivateDevice: vi.fn(), reactivateDevice: vi.fn(),
   removeDevice: vi.fn(), getDeviceHistory: vi.fn(), registerDevice: vi.fn(), updateDevice: vi.fn()
+  , getAccessibleProjects: vi.fn(), getDeviceGroups: vi.fn(), getDeviceTags: vi.fn()
+  , createDeviceGroup: vi.fn(), updateDeviceGroup: vi.fn(), deleteDeviceGroup: vi.fn(), getGroupMembers: vi.fn(), assignGroupDevices: vi.fn(), removeGroupDevice: vi.fn(), createDeviceTag: vi.fn(), updateDeviceTag: vi.fn(), deleteDeviceTag: vi.fn(), assignDeviceTags: vi.fn()
+  , getAssignedDeviceTags: vi.fn()
   , getDeviceConfiguration: vi.fn(), updateDeviceConfiguration: vi.fn(), getDeviceConfigurationHistory: vi.fn(), restoreDeviceConfiguration: vi.fn(), getDeviceConfigurationTemplates: vi.fn(), createDeviceConfigurationTemplate: vi.fn(), updateDeviceConfigurationTemplate: vi.fn(), applyDeviceConfigurationTemplate: vi.fn()
 }));
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: "ADMIN" }) }));
@@ -21,7 +24,7 @@ function response(overrides = {}) {
 }
 
 describe("DevicesPage", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); getAccessibleProjects.mockResolvedValue([]); getDeviceGroups.mockResolvedValue([]); getDeviceTags.mockResolvedValue([]); });
 
   it("renders inventory metadata and keeps offline devices visible", async () => {
     getDeviceInventory.mockResolvedValue(response());
@@ -74,5 +77,21 @@ describe("DevicesPage", () => {
     getDeviceInventory.mockRejectedValueOnce(new Error("network"));
     render(<DevicesPage />);
     expect(await screen.findByText("Unable to load the device inventory. Please try again.")).toBeInTheDocument();
+  });
+
+  it("composes project, group and multiple tag filters and clears them", async () => {
+    const user = userEvent.setup();
+    getAccessibleProjects.mockResolvedValue([{ id: "project-1", name: "Factory" }]);
+    getDeviceGroups.mockResolvedValue([{ id: "group-1", name: "Production" }]);
+    getDeviceTags.mockResolvedValue([{ id: "tag-1", name: "Critical" }, { id: "tag-2", name: "ARM64" }]);
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />); await screen.findAllByText("Alpha");
+    await user.selectOptions(screen.getByLabelText("Project"), "project-1");
+    await screen.findByRole("option", { name: "Production" });
+    await user.selectOptions(screen.getByLabelText("Group filter"), "group-1");
+    await user.click(screen.getByLabelText("Critical")); await user.click(screen.getByLabelText("ARM64"));
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-1", groupId: "group-1", tagIds: ["tag-1", "tag-2"] })));
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ groupId: "", tagIds: [] })));
   });
 });

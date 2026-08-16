@@ -4,12 +4,30 @@ export async function getDevices() {
   return apiRequest("/api/v1/devices");
 }
 
-export async function getDeviceInventory({ search = "", page = 0, size = 20, sort = "name", direction = "asc" } = {}) {
+export async function getDeviceInventory({ search = "", page = 0, size = 20, sort = "name", direction = "asc", projectId = "", groupId = "", tagIds = [] } = {}) {
   const params = new URLSearchParams({ search, page, size, sort, direction });
+  if (projectId) params.set("projectId", projectId);
+  if (groupId) params.set("groupId", groupId);
+  tagIds.forEach(id => params.append("tagIds", id));
   return apiRequest(`/api/v1/devices/inventory?${params.toString()}`);
 }
 
 const managementPath = "/api/v1/devices/management";
+const organisationPath = projectId => `${managementPath}/projects/${encodeURIComponent(projectId)}`;
+export const getAccessibleProjects = () => apiRequest("/api/v2/projects");
+export const getDeviceGroups = (projectId, search = "") => apiRequest(`${organisationPath(projectId)}/groups?search=${encodeURIComponent(search)}`);
+export const createDeviceGroup = (projectId, payload) => apiRequest(`${organisationPath(projectId)}/groups`, { method: "POST", body: JSON.stringify(payload) });
+export const updateDeviceGroup = (projectId, id, payload) => apiRequest(`${organisationPath(projectId)}/groups/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteDeviceGroup = (projectId, id) => apiRequest(`${organisationPath(projectId)}/groups/${id}`, { method: "DELETE" });
+export const getGroupMembers = (projectId, id) => apiRequest(`${organisationPath(projectId)}/groups/${id}/devices`);
+export const assignGroupDevices = (projectId, id, deviceIds) => apiRequest(`${organisationPath(projectId)}/groups/${id}/devices`, { method: "POST", body: JSON.stringify({ deviceIds }) });
+export const removeGroupDevice = (projectId, id, deviceId) => apiRequest(`${organisationPath(projectId)}/groups/${id}/devices/${deviceId}`, { method: "DELETE" });
+export const getDeviceTags = (projectId, search = "") => apiRequest(`${organisationPath(projectId)}/tags?search=${encodeURIComponent(search)}`);
+export const createDeviceTag = (projectId, payload) => apiRequest(`${organisationPath(projectId)}/tags`, { method: "POST", body: JSON.stringify(payload) });
+export const updateDeviceTag = (projectId, id, payload) => apiRequest(`${organisationPath(projectId)}/tags/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteDeviceTag = (projectId, id) => apiRequest(`${organisationPath(projectId)}/tags/${id}`, { method: "DELETE" });
+export const getAssignedDeviceTags = (projectId, deviceId) => apiRequest(`${organisationPath(projectId)}/devices/${deviceId}/tags`);
+export const assignDeviceTags = (projectId, deviceId, tagIds) => apiRequest(`${organisationPath(projectId)}/devices/${deviceId}/tags`, { method: "PUT", body: JSON.stringify({ tagIds }) });
 export const registerDevice = payload => apiRequest(managementPath, { method: "POST", body: JSON.stringify(payload) });
 export const updateDevice = (id, payload) => apiRequest(`${managementPath}/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 export const deactivateDevice = id => apiRequest(`${managementPath}/${id}/deactivate`, { method: "POST" });
