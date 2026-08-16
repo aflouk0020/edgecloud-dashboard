@@ -10,6 +10,7 @@ import { getDeviceInventory } from "../../services/deviceService";
 import { deactivateDevice, reactivateDevice, removeDevice } from "../../services/deviceService";
 import { useAuth } from "../../context/AuthContext";
 import DeviceManagementDialog from "./DeviceManagementDialog";
+import DeviceConfigurationDialog from "./DeviceConfigurationDialog";
 
 const PAGE_SIZE = 10;
 
@@ -120,7 +121,7 @@ export default function DevicesPage() {
                   <td>{optionalValue(device.firmwareVersion)}</td><td>{optionalValue(device.assignedProject)}</td>
                   <td>{formatDate(device.registrationDate)}</td><td>{formatDate(device.lastSeen)}</td>
                   <td>{device.tags?.length ? device.tags.join(", ") : "None"}</td><td>{optionalValue(device.location)}</td>
-                  <td className="device-row-actions"><button onClick={() => setDialog({ mode: "history", device })}>History</button>{canManage && <><button onClick={() => setDialog({ mode: "edit", device })}>Edit</button><button onClick={() => transition(device)}>{device.active ? "Deactivate" : "Reactivate"}</button></>}{role === "ADMIN" && !device.active && <button onClick={() => remove(device)}>Remove</button>}</td>
+                  <td className="device-row-actions"><button onClick={() => setDialog({ mode: "configuration", device })}>Configuration</button><button onClick={() => setDialog({ mode: "history", device })}>History</button>{canManage && <><button onClick={() => setDialog({ mode: "edit", device })}>Edit</button><button onClick={() => transition(device)}>{device.active ? "Deactivate" : "Reactivate"}</button></>}{role === "ADMIN" && !device.active && <button onClick={() => remove(device)}>Remove</button>}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -129,7 +130,7 @@ export default function DevicesPage() {
             <article key={device.deviceId} className={`device-inventory-card ${device.operationalStatus?.toLowerCase()}`}>
               <header><div><strong>{device.name}</strong><small>{device.deviceId}</small></div><StatusBadge variant={device.operationalStatus}>{device.operationalStatus}</StatusBadge></header>
               <dl><div><dt>Type</dt><dd>{device.type}</dd></div><div><dt>Lifecycle</dt><dd>{device.active ? "Active" : "Inactive"}</dd></div><div><dt>Heartbeat</dt><dd>{device.heartbeatStatus.replaceAll("_", " ")} · {formatDate(device.latestHeartbeat)}</dd></div><div><dt>Firmware</dt><dd>{optionalValue(device.firmwareVersion)}</dd></div><div><dt>Project</dt><dd>{optionalValue(device.assignedProject)}</dd></div><div><dt>Registered</dt><dd>{formatDate(device.registrationDate)}</dd></div><div><dt>Last communication</dt><dd>{formatDate(device.lastSeen)}</dd></div><div><dt>Tags</dt><dd>{device.tags?.length ? device.tags.join(", ") : "None"}</dd></div><div><dt>Location</dt><dd>{optionalValue(device.location)}</dd></div></dl>
-              <footer className="device-row-actions"><button onClick={() => setDialog({ mode: "history", device })}>History</button>{canManage && <><button onClick={() => setDialog({ mode: "edit", device })}>Edit</button><button onClick={() => transition(device)}>{device.active ? "Deactivate" : "Reactivate"}</button></>}{role === "ADMIN" && !device.active && <button onClick={() => remove(device)}>Remove</button>}</footer>
+              <footer className="device-row-actions"><button onClick={() => setDialog({ mode: "configuration", device })}>Configuration</button><button onClick={() => setDialog({ mode: "history", device })}>History</button>{canManage && <><button onClick={() => setDialog({ mode: "edit", device })}>Edit</button><button onClick={() => transition(device)}>{device.active ? "Deactivate" : "Reactivate"}</button></>}{role === "ADMIN" && !device.active && <button onClick={() => remove(device)}>Remove</button>}</footer>
             </article>
           ))}</div>
         </>
@@ -138,7 +139,7 @@ export default function DevicesPage() {
       {(inventory?.totalPages || 0) > 1 && (
         <nav className="device-inventory-pagination" aria-label="Device inventory pagination"><button type="button" disabled={page === 0} onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page + 1} of {inventory.totalPages}</span><button type="button" disabled={page + 1 >= inventory.totalPages} onClick={() => setPage(value => value + 1)}>Next</button></nav>
       )}
-      {dialog && <DeviceManagementDialog {...dialog} onClose={() => setDialog(null)} onSaved={saved} />}
+      {dialog?.mode === "configuration" ? <DeviceConfigurationDialog device={dialog.device} role={role} onClose={() => setDialog(null)} /> : dialog && <DeviceManagementDialog {...dialog} onClose={() => setDialog(null)} onSaved={saved} />}
     </section>
   );
 }
