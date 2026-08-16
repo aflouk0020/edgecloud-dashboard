@@ -38,6 +38,11 @@ export const getDeviceHistory = id => apiRequest(`${managementPath}/${id}/histor
 export const getHeartbeatState = (id, projectId = "") => apiRequest(projectId ? `${organisationPath(projectId)}/devices/${id}/heartbeat` : `${managementPath}/${id}/heartbeat`);
 export const getHeartbeatHistory = (id, page = 0, size = 20, projectId = "") => apiRequest(`${projectId ? `${organisationPath(projectId)}/devices/${id}` : `${managementPath}/${id}`}/heartbeat/history?page=${page}&size=${size}`);
 export const getHeartbeatStatistics = (id, projectId = "") => apiRequest(`${projectId ? `${organisationPath(projectId)}/devices/${id}` : `${managementPath}/${id}`}/heartbeat/statistics`);
+const maintenancePath = (id, projectId = "") => `${projectId ? `${organisationPath(projectId)}/devices/${id}` : `${managementPath}/${id}`}/maintenance`;
+export const getDeviceMaintenance = (id, projectId = "") => apiRequest(maintenancePath(id, projectId));
+export const getDeviceMaintenanceHistory = (id, projectId = "") => apiRequest(`${maintenancePath(id, projectId)}/history`);
+export const enableDeviceMaintenance = (id, payload, projectId = "") => apiRequest(maintenancePath(id, projectId), { method: "POST", body: JSON.stringify(payload) });
+export const disableDeviceMaintenance = (id, projectId = "") => apiRequest(maintenancePath(id, projectId), { method: "DELETE" });
 
 export const getDeviceConfiguration = id => apiRequest(`${managementPath}/${id}/configuration`);
 export const updateDeviceConfiguration = (id, payload) => apiRequest(`${managementPath}/${id}/configuration`, { method: "PUT", body: JSON.stringify(payload) });

@@ -11,12 +11,13 @@ vi.mock("../../services/deviceService", () => ({
   , createDeviceGroup: vi.fn(), updateDeviceGroup: vi.fn(), deleteDeviceGroup: vi.fn(), getGroupMembers: vi.fn(), assignGroupDevices: vi.fn(), removeGroupDevice: vi.fn(), createDeviceTag: vi.fn(), updateDeviceTag: vi.fn(), deleteDeviceTag: vi.fn(), assignDeviceTags: vi.fn()
   , getAssignedDeviceTags: vi.fn()
   , getHeartbeatState: vi.fn(), getHeartbeatHistory: vi.fn(), getHeartbeatStatistics: vi.fn()
+  , getDeviceMaintenance: vi.fn(), getDeviceMaintenanceHistory: vi.fn(), enableDeviceMaintenance: vi.fn(), disableDeviceMaintenance: vi.fn()
   , getDeviceConfiguration: vi.fn(), updateDeviceConfiguration: vi.fn(), getDeviceConfigurationHistory: vi.fn(), restoreDeviceConfiguration: vi.fn(), getDeviceConfigurationTemplates: vi.fn(), createDeviceConfigurationTemplate: vi.fn(), updateDeviceConfigurationTemplate: vi.fn(), applyDeviceConfigurationTemplate: vi.fn()
 }));
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: "ADMIN" }) }));
 
 const devices = [
-  { deviceId: "11111111-1111-1111-1111-111111111111", name: "Alpha", type: "SENSOR", operationalStatus: "ONLINE", heartbeatStatus: "CURRENT", latestHeartbeat: "2026-08-16T10:00:00", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-01T09:00:00", lastSeen: "2026-08-16T10:00:00", tags: [], location: null },
+  { deviceId: "11111111-1111-1111-1111-111111111111", name: "Alpha", type: "SENSOR", operationalStatus: "ONLINE", heartbeatStatus: "CURRENT", latestHeartbeat: "2026-08-16T10:00:00", maintenanceMode: true, maintenanceReason: "Planned inspection", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-01T09:00:00", lastSeen: "2026-08-16T10:00:00", tags: [], location: null },
   { deviceId: "22222222-2222-2222-2222-222222222222", name: "Bravo", type: "GATEWAY", operationalStatus: "OFFLINE", heartbeatStatus: "STALE", latestHeartbeat: "2026-08-15T10:00:00", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-02T09:00:00", lastSeen: "2026-08-15T10:00:00", tags: [], location: null }
 ];
 
@@ -35,6 +36,9 @@ describe("DevicesPage", () => {
     expect(screen.getAllByText("Bravo").length).toBeGreaterThan(0);
     expect(screen.getAllByText("OFFLINE").length).toBeGreaterThan(0);
     expect(screen.getAllByText("STALE").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MAINTENANCE").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Planned inspection").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CURRENT").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Not recorded").length).toBeGreaterThan(0);
   });
 
