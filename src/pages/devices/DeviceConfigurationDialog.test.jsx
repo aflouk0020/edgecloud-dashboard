@@ -2,7 +2,7 @@ import { render,screen,waitFor } from "@testing-library/react"; import userEvent
 import DeviceConfigurationDialog from "./DeviceConfigurationDialog"; import * as api from "../../services/deviceService";
 vi.mock("../../services/deviceService",()=>({getDeviceConfiguration:vi.fn(),updateDeviceConfiguration:vi.fn(),getDeviceConfigurationHistory:vi.fn(),restoreDeviceConfiguration:vi.fn(),getDeviceConfigurationTemplates:vi.fn(),createDeviceConfigurationTemplate:vi.fn(),updateDeviceConfigurationTemplate:vi.fn(),applyDeviceConfigurationTemplate:vi.fn()}));
 const device={deviceId:"11111111-1111-1111-1111-111111111111",name:"Alpha",active:true};
-const configuration={deviceId:device.deviceId,pollingIntervalSeconds:60,heartbeatIntervalSeconds:30,metricsCollectionIntervalSeconds:60,environment:"DEVELOPMENT",apiEndpoint:"",loggingLevel:"INFO",tags:["edge"],version:2,updatedAt:"2026-08-16T10:00:00",updatedBy:"user-1"};
+const configuration={deviceId:device.deviceId,pollingIntervalSeconds:60,heartbeatIntervalSeconds:30,heartbeatTimeoutSeconds:90,metricsCollectionIntervalSeconds:60,environment:"DEVELOPMENT",apiEndpoint:"",loggingLevel:"INFO",tags:["edge"],version:2,updatedAt:"2026-08-16T10:00:00",updatedBy:"user-1"};
 const version={...configuration,version:1,action:"UPDATED",changedFields:["pollingIntervalSeconds"],changedAt:"2026-08-15T10:00:00",changedBy:"user-1"};
 function ready({history=[version],templates=[]}={}){api.getDeviceConfiguration.mockResolvedValue(configuration);api.getDeviceConfigurationHistory.mockResolvedValue(history);api.getDeviceConfigurationTemplates.mockResolvedValue(templates);}
 describe("DeviceConfigurationDialog",()=>{beforeEach(()=>vi.clearAllMocks());

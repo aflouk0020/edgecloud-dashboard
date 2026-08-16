@@ -18,4 +18,5 @@ describe("getDeviceInventory", () => {
     await getDeviceInventory({ projectId: "p 1", groupId: "g-1", tagIds: ["t-1", "t-2"] });
     expect(apiRequest.mock.calls.at(-1)[0]).toContain("projectId=p+1&groupId=g-1&tagIds=t-1&tagIds=t-2");
   });
+  it("encodes heartbeat status filtering",async()=>{apiRequest.mockResolvedValue({devices:[]});await getDeviceInventory({heartbeatStatus:"OFFLINE"});expect(apiRequest.mock.calls.at(-1)[0]).toContain("heartbeatStatus=OFFLINE");});
 });
