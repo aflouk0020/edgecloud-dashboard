@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDeviceInventory } from "../../services/deviceService";
 import DevicesPage from "./DevicesPage";
 
-vi.mock("../../services/deviceService", () => ({ getDeviceInventory: vi.fn() }));
+vi.mock("../../services/deviceService", () => ({
+  getDeviceInventory: vi.fn(), deactivateDevice: vi.fn(), reactivateDevice: vi.fn(),
+  removeDevice: vi.fn(), getDeviceHistory: vi.fn(), registerDevice: vi.fn(), updateDevice: vi.fn()
+}));
+vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: "ADMIN" }) }));
 
 const devices = [
   { deviceId: "11111111-1111-1111-1111-111111111111", name: "Alpha", type: "SENSOR", operationalStatus: "ONLINE", heartbeatStatus: "CURRENT", latestHeartbeat: "2026-08-16T10:00:00", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-01T09:00:00", lastSeen: "2026-08-16T10:00:00", tags: [], location: null },

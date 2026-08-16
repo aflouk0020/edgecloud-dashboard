@@ -23,14 +23,15 @@ export async function apiRequest(endpoint, options = {}) {
   );
 
   if (!response.ok) {
-    throw new Error(
-      `API request failed: ${response.status}`
-    );
+    let message = `API request failed: ${response.status}`;
+    try { const body = await response.json(); message = body.message || message; } catch { /* non-JSON error */ }
+    throw new Error(message);
   }
 
   if (options.responseType === "raw") {
     return response;
   }
 
+  if (response.status === 204) return null;
   return response.json();
 }
