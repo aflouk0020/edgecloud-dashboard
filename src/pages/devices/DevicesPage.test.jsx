@@ -1,128 +1,73 @@
-import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { getDeviceInventory } from "../../services/deviceService";
 import DevicesPage from "./DevicesPage";
-import { getDeviceAggregation } from "../../services/metricAggregationService";
-import { getDevices } from "../../services/deviceService";
 
-vi.mock("../../services/deviceService", () => ({
-  getDevices: vi.fn()
-}));
+vi.mock("../../services/deviceService", () => ({ getDeviceInventory: vi.fn() }));
 
-vi.mock("../../services/metricAggregationService", () => ({
-  getDeviceAggregation: vi.fn()
-}));
-
-const mockDevices = [
-  {
-    id: "device-1",
-    deviceName: "raspberry-pi-01",
-    deviceType: "RASPBERRY_PI",
-    ipAddress: "192.168.1.11",
-    status: "ONLINE",
-    registeredAt: "2026-07-14T10:00:00",
-    lastHeartbeat: "2026-07-14T10:10:00"
-  },
-  {
-    id: "device-2",
-    deviceName: "simulator-01",
-    deviceType: "SIMULATED",
-    ipAddress: "192.168.1.12",
-    status: "OFFLINE",
-    registeredAt: "2026-07-14T10:00:00",
-    lastHeartbeat: "2026-07-14T10:05:00"
-  }
+const devices = [
+  { deviceId: "11111111-1111-1111-1111-111111111111", name: "Alpha", type: "SENSOR", operationalStatus: "ONLINE", heartbeatStatus: "CURRENT", latestHeartbeat: "2026-08-16T10:00:00", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-01T09:00:00", lastSeen: "2026-08-16T10:00:00", tags: [], location: null },
+  { deviceId: "22222222-2222-2222-2222-222222222222", name: "Bravo", type: "GATEWAY", operationalStatus: "OFFLINE", heartbeatStatus: "STALE", latestHeartbeat: "2026-08-15T10:00:00", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-02T09:00:00", lastSeen: "2026-08-15T10:00:00", tags: [], location: null }
 ];
 
-const aggregationResponse = {
-  scope: "DEVICE",
-  serviceId: null,
-  deviceId: "device-1",
-  projectId: null,
-  dateRange: { from: null, to: null, openEnded: true },
-  emptyResult: false,
-  summaries: [
-    {
-      scope: "DEVICE",
-      metrics: {
-        averageValue: 31.5,
-        minimumValue: 20,
-        maximumValue: 42,
-        latestValue: 34,
-        sampleCount: 2
-      },
-      availability: {
-        totalSamples: 2,
-        availableSamples: 2,
-        unavailableSamples: 0,
-        availabilityPercentage: 100,
-        latestRecordedAt: "2026-07-14T10:10:00"
-      },
-      series: []
-    }
-  ]
-};
+function response(overrides = {}) {
+  return { devices, page: 0, size: 10, totalElements: 12, totalPages: 2, sort: "name", direction: "asc", ...overrides };
+}
 
 describe("DevicesPage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getDeviceAggregation.mockResolvedValue(aggregationResponse);
+  beforeEach(() => vi.clearAllMocks());
+
+  it("renders inventory metadata and keeps offline devices visible", async () => {
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />);
+    expect(screen.getByText("Loading device inventory...")).toBeInTheDocument();
+    expect((await screen.findAllByText("Alpha")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bravo").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("OFFLINE").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("STALE").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Not recorded").length).toBeGreaterThan(0);
   });
 
-  it("filters devices by search, status, and device type", async () => {
+  it("submits server-side search", async () => {
     const user = userEvent.setup();
-    getDevices.mockResolvedValue(mockDevices);
-
-    render(React.createElement(DevicesPage));
-
-    expect((await screen.findAllByText("raspberry-pi-01"))[0])
-      .toBeInTheDocument();
-    expect(await screen.findByText("Aggregation spotlight"))
-      .toBeInTheDocument();
-    expect(screen.getByText("Latest sample: 14 Jul 2026, 10:10")).toBeInTheDocument();
-    expect(screen.getAllByText("31.5")[0]).toBeInTheDocument();
-
-    await user.selectOptions(
-      screen.getByLabelText("Device status"),
-      "OFFLINE"
-    );
-
-    expect(screen.getAllByText("simulator-01")[0]).toBeInTheDocument();
-    expect(screen.queryByText("raspberry-pi-01")).not.toBeInTheDocument();
-
-    await user.click(screen.getByText("Clear filters"));
-    await user.selectOptions(
-      screen.getByLabelText("Device type"),
-      "RASPBERRY_PI"
-    );
-
-    expect(screen.getAllByText("raspberry-pi-01")[0]).toBeInTheDocument();
-    expect(screen.queryByText("simulator-01")).not.toBeInTheDocument();
-
-    await user.click(screen.getByText("Clear filters"));
-    await user.type(
-      screen.getByLabelText("Device name, IP, or ID"),
-      "192.168.1.12"
-    );
-
-    expect(screen.getAllByText("simulator-01")[0]).toBeInTheDocument();
-    expect(screen.queryByText("raspberry-pi-01")).not.toBeInTheDocument();
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />);
+    await screen.findAllByText("Alpha");
+    await user.type(screen.getByLabelText("Search by device name or ID"), "Bravo");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ search: "Bravo", page: 0 })));
   });
 
-  it("shows a filtered empty state", async () => {
+  it("changes sorting and requests the next page", async () => {
     const user = userEvent.setup();
-    getDevices.mockResolvedValue(mockDevices);
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />);
+    await screen.findAllByText("Alpha");
+    await user.selectOptions(screen.getByLabelText("Sort by"), "lastSeen");
+    await user.selectOptions(screen.getByLabelText("Sort direction"), "desc");
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "lastSeen", direction: "desc" })));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 })));
+  });
 
-    render(React.createElement(DevicesPage));
+  it("shows empty search results", async () => {
+    const user = userEvent.setup();
+    getDeviceInventory.mockResolvedValueOnce(response()).mockResolvedValueOnce(response({ devices: [], totalElements: 0, totalPages: 0 }));
+    render(<DevicesPage />);
+    await screen.findAllByText("Alpha");
+    await user.type(screen.getByLabelText("Search by device name or ID"), "missing");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    expect(await screen.findByText("No Matching Devices")).toBeInTheDocument();
+  });
 
-    await screen.findAllByText("raspberry-pi-01");
-    await user.type(
-      screen.getByLabelText("Device name, IP, or ID"),
-      "unknown-device"
-    );
-
-    expect(screen.getByText("No Matching Devices")).toBeInTheDocument();
+  it("shows initial empty and error states", async () => {
+    getDeviceInventory.mockResolvedValueOnce(response({ devices: [], totalElements: 0, totalPages: 0 }));
+    const first = render(<DevicesPage />);
+    expect(await screen.findByText("No Registered Devices")).toBeInTheDocument();
+    first.unmount();
+    getDeviceInventory.mockRejectedValueOnce(new Error("network"));
+    render(<DevicesPage />);
+    expect(await screen.findByText("Unable to load the device inventory. Please try again.")).toBeInTheDocument();
   });
 });

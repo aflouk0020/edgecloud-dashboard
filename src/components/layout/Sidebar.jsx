@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 const navItems = [
   {
@@ -12,9 +13,10 @@ const navItems = [
     icon: "◇"
   },
   {
-    label: "Devices",
+    label: "Device Inventory",
     path: "/devices",
-    icon: "▣"
+    icon: "▣",
+    roles: ["ADMIN", "OPERATOR"]
   },
   {
     label: "Telemetry",
@@ -29,6 +31,8 @@ const navItems = [
 ];
 
 function Sidebar() {
+  const { role } = useAuth();
+  const visibleItems = navItems.filter(item => !item.roles || item.roles.includes(role));
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -40,7 +44,7 @@ function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map(item => (
+        {visibleItems.map(item => (
           <NavLink
             key={item.path}
             to={item.path}
