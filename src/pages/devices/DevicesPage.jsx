@@ -1,426 +1,120 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import MonitoringFilterBar, {
-  FilterSelect
-} from "../../components/filters/MonitoringFilterBar";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import LoadingState from "../../components/ui/LoadingState";
 import PageHero from "../../components/ui/PageHero";
-import StatCard from "../../components/ui/StatCard";
 import StatusBadge from "../../components/ui/StatusBadge";
 import { PrimaryButton } from "../../components/ui/Buttons";
-import { getDeviceAggregation } from "../../services/metricAggregationService";
-import { getDevices } from "../../services/deviceService";
+import { getDeviceInventory } from "../../services/deviceService";
+
+const PAGE_SIZE = 10;
 
 function formatDate(value) {
-  if (!value) {
-    return "Never";
-  }
-
+  if (!value) return "Never";
   return new Intl.DateTimeFormat("en-IE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
   }).format(new Date(value));
 }
 
-function aggregationState(loading = false, error = false) {
-  return { loading, error };
-}
-
-function firstSummary(response) {
-  return response?.summaries?.[0] || null;
-}
-
-function metricValue(summary, key) {
-  return summary?.metrics?.[key];
-}
-
-function availabilityValue(summary, key) {
-  return summary?.availability?.[key];
+function optionalValue(value) {
+  return value || "Not recorded";
 }
 
 export default function DevicesPage() {
-  const [devices, setDevices] = useState([]);
-  const [aggregationByDevice, setAggregationByDevice] = useState({});
-  const [aggregationStateByDevice, setAggregationStateByDevice] = useState({});
+  const [inventory, setInventory] = useState(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState("name");
+  const [direction, setDirection] = useState("asc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [reloadKey, setReloadKey] = useState(0);
 
-  async function loadDevices() {
-    try {
-      setLoading(true);
-      setError("");
-      setAggregationByDevice({});
-      setAggregationStateByDevice({});
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    getDeviceInventory({ search, page, size: PAGE_SIZE, sort, direction })
+      .then(response => active && setInventory(response))
+      .catch(() => active && setError("Unable to load the device inventory. Please try again."))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [search, page, sort, direction, reloadKey]);
 
-      const data = await getDevices();
-      setDevices(Array.isArray(data) ? data : []);
-    } catch {
-      setError("Unable to load devices. Please verify the Device Service is running.");
-    } finally {
-      setLoading(false);
-    }
+  function submitSearch(event) {
+    event.preventDefault();
+    setPage(0);
+    setSearch(searchInput.trim());
   }
 
-  const loadAggregation = useCallback(async deviceId => {
-    setAggregationByDevice(previous => {
-      const next = { ...previous };
-      delete next[deviceId];
-      return next;
-    });
+  function changeSort(event) {
+    setPage(0);
+    setSort(event.target.value);
+  }
 
-    setAggregationStateByDevice(previous => ({
-      ...previous,
-      [deviceId]: aggregationState(true, false)
-    }));
-
-    try {
-      const aggregation = await getDeviceAggregation(deviceId);
-
-      setAggregationByDevice(previous => ({
-        ...previous,
-        [deviceId]: aggregation
-      }));
-
-      setAggregationStateByDevice(previous => ({
-        ...previous,
-        [deviceId]: aggregationState(false, false)
-      }));
-    } catch {
-      setAggregationStateByDevice(previous => ({
-        ...previous,
-        [deviceId]: aggregationState(false, true)
-      }));
-    }
-  }, []);
-
-  React.useEffect(() => {
-    let active = true;
-
-    getDevices()
-      .then(data => {
-        if (active) {
-          setDevices(Array.isArray(data) ? data : []);
-          setError("");
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError(
-            "Unable to load devices. Please verify the Device Service is running."
-          );
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const onlineCount =
-    devices.filter(device => device.status === "ONLINE").length;
-
-  const offlineCount =
-    devices.filter(device => device.status === "OFFLINE").length;
-
-  const deviceTypeOptions = useMemo(() => {
-    const deviceTypes = [...new Set(
-      devices
-        .map(device => device.deviceType)
-        .filter(Boolean)
-    )].sort();
-
-    return [
-      { value: "ALL", label: "All device types" },
-      ...deviceTypes.map(deviceType => ({
-        value: deviceType,
-        label: deviceType
-      }))
-    ];
-  }, [devices]);
-
-  const filteredDevices = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    return devices.filter(device => {
-      const matchesSearch =
-        !query ||
-        device.deviceName?.toLowerCase().includes(query) ||
-        device.ipAddress?.toLowerCase().includes(query) ||
-        device.id?.toLowerCase().includes(query);
-
-      const matchesStatus =
-        statusFilter === "ALL" || device.status === statusFilter;
-
-      const matchesType =
-        typeFilter === "ALL" || device.deviceType === typeFilter;
-
-      return matchesSearch && matchesStatus && matchesType;
-    });
-  }, [devices, searchQuery, statusFilter, typeFilter]);
-
-  const spotlightDevice = filteredDevices[0] || null;
-  const spotlightAggregation = spotlightDevice
-    ? aggregationByDevice[spotlightDevice.id]
-    : null;
-  const spotlightAggregationState = spotlightDevice
-    ? aggregationStateByDevice[spotlightDevice.id] || aggregationState(true, false)
-    : aggregationState(true, false);
-
-  React.useEffect(() => {
-    if (spotlightDevice) {
-      loadAggregation(spotlightDevice.id);
-    }
-  }, [loadAggregation, spotlightDevice?.id]);
-
-  const hasActiveFilters =
-    searchQuery.trim() !== "" ||
-    statusFilter !== "ALL" ||
-    typeFilter !== "ALL";
-
-  function clearFilters() {
-    setSearchQuery("");
-    setStatusFilter("ALL");
-    setTypeFilter("ALL");
+  function changeDirection(event) {
+    setPage(0);
+    setDirection(event.target.value);
   }
 
   if (loading) {
+    return <section className="device-inventory-page"><LoadingState message="Loading device inventory..." /></section>;
+  }
+
+  if (error) {
     return (
-      <section className="devices-page">
-        <LoadingState message="Loading registered edge devices..." />
+      <section className="device-inventory-page">
+        <ErrorState message={error} action={<PrimaryButton onClick={() => setReloadKey(value => value + 1)}>Retry</PrimaryButton>} />
       </section>
     );
   }
 
+  const devices = inventory?.devices || [];
+
   return (
-    <section className="devices-page">
-      <PageHero
-        eyebrow="Device Service"
-        title="Edge Device Monitoring"
-        description="Track Raspberry Pi and simulated edge node availability, metadata, and heartbeat state."
-        action={
-          <PrimaryButton onClick={loadDevices}>
-            Refresh Devices
-          </PrimaryButton>
-        }
-      />
+    <section className="device-inventory-page">
+      <PageHero eyebrow="Device Service" title="Device Inventory" description="Browse registered edge devices and their latest operational and heartbeat state." />
 
-      <div className="alert-summary-grid">
-        <StatCard
-          title="Registered Devices"
-          value={devices.length}
-        />
+      <form className="device-inventory-controls" onSubmit={submitSearch}>
+        <label><span>Search by device name or ID</span><input type="search" value={searchInput} placeholder="Search devices..." onChange={event => setSearchInput(event.target.value)} /></label>
+        <PrimaryButton type="submit">Search</PrimaryButton>
+        <label><span>Sort by</span><select aria-label="Sort by" value={sort} onChange={changeSort}><option value="name">Name</option><option value="status">Status</option><option value="lastSeen">Last seen</option><option value="registrationDate">Registration date</option></select></label>
+        <label><span>Direction</span><select aria-label="Sort direction" value={direction} onChange={changeDirection}><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
+      </form>
 
-        <StatCard
-          title="Online Devices"
-          value={onlineCount}
-          variant="success"
-        />
-
-        <StatCard
-          title="Offline Devices"
-          value={offlineCount}
-          variant="danger"
-        />
-      </div>
-
-      {!error && spotlightDevice && (
-        <section className="service-reliability-panel info">
-          <div className="service-reliability-header">
-            <div>
-              <span className="service-reliability-eyebrow">
-                Aggregation spotlight
-              </span>
-              <strong>{spotlightDevice.deviceName}</strong>
-            </div>
-            <span className="service-reliability-date">
-              Latest sample: {
-                firstSummary(spotlightAggregation)?.availability?.latestRecordedAt
-                  ? formatDate(firstSummary(spotlightAggregation).availability.latestRecordedAt)
-                  : "Unavailable"
-              }
-            </span>
-          </div>
-
-          {spotlightAggregationState.loading ? (
-            <LoadingState message="Loading device aggregation..." />
-          ) : spotlightAggregationState.error ? (
-            <ErrorState
-              title="Device aggregation unavailable"
-              message="The aggregation endpoint could not be loaded right now."
-            />
-          ) : spotlightAggregation?.emptyResult ? (
-            <EmptyState
-              title="No aggregation samples yet"
-              message="This device has no aggregation data in the selected scope."
-            />
-          ) : (
-            <div className="service-reliability-grid">
-              <div>
-                <span>Average CPU usage</span>
-                <strong>
-                  {metricValue(firstSummary(spotlightAggregation), "averageValue") ?? "—"}
-                  <small>%</small>
-                </strong>
-              </div>
-              <div>
-                <span>Minimum CPU usage</span>
-                <strong>
-                  {metricValue(firstSummary(spotlightAggregation), "minimumValue") ?? "—"}
-                  <small>%</small>
-                </strong>
-              </div>
-              <div>
-                <span>Maximum CPU usage</span>
-                <strong>
-                  {metricValue(firstSummary(spotlightAggregation), "maximumValue") ?? "—"}
-                  <small>%</small>
-                </strong>
-              </div>
-              <div>
-                <span>Sample count</span>
-                <strong>
-                  {metricValue(firstSummary(spotlightAggregation), "sampleCount") ?? 0}
-                </strong>
-              </div>
-              <div>
-                <span>Availability</span>
-                <strong>
-                  {availabilityValue(firstSummary(spotlightAggregation), "availabilityPercentage") ?? 0}
-                  <small>%</small>
-                </strong>
-              </div>
-              <div>
-                <span>Latest heartbeat</span>
-                <strong>
-                  {availabilityValue(firstSummary(spotlightAggregation), "latestRecordedAt")
-                    ? formatDate(availabilityValue(firstSummary(spotlightAggregation), "latestRecordedAt"))
-                    : "—"}
-                </strong>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {error && (
-        <ErrorState
-          message={error}
-          action={
-            <PrimaryButton onClick={loadDevices}>
-              Retry
-            </PrimaryButton>
-          }
-        />
-      )}
-
-      {!error && devices.length === 0 && (
-        <EmptyState
-          title="No Registered Devices"
-          message="No edge devices are currently registered."
-          action={
-            <PrimaryButton onClick={loadDevices}>
-              Refresh
-            </PrimaryButton>
-          }
-        />
-      )}
-
-      {!error && devices.length > 0 && (
+      {devices.length === 0 ? (
+        <EmptyState title={search ? "No Matching Devices" : "No Registered Devices"} message={search ? "No device name or ID matched the search." : "No edge devices are currently registered."} />
+      ) : (
         <>
-          <MonitoringFilterBar
-            searchId="device-search"
-            searchLabel="Device name, IP, or ID"
-            searchPlaceholder="Search raspberry-pi-01..."
-            searchValue={searchQuery}
-            onSearchChange={event => setSearchQuery(event.target.value)}
-            resultCount={filteredDevices.length}
-            totalCount={devices.length}
-            hasActiveFilters={hasActiveFilters}
-            onClear={clearFilters}
-          >
-            <FilterSelect
-              id="device-status-filter"
-              label="Device status"
-              value={statusFilter}
-              onChange={event => setStatusFilter(event.target.value)}
-              options={[
-                { value: "ALL", label: "All statuses" },
-                { value: "ONLINE", label: "Online" },
-                { value: "OFFLINE", label: "Offline" }
-              ]}
-            />
-
-            <FilterSelect
-              id="device-type-filter"
-              label="Device type"
-              value={typeFilter}
-              onChange={event => setTypeFilter(event.target.value)}
-              options={deviceTypeOptions}
-            />
-          </MonitoringFilterBar>
-
-          {filteredDevices.length === 0 ? (
-            <EmptyState
-              title="No Matching Devices"
-              message="No registered devices match the current search, status, and device-type filters."
-              action={
-                <PrimaryButton onClick={clearFilters}>
-                  Clear Filters
-                </PrimaryButton>
-              }
-            />
-          ) : (
-            <div className="incident-list">
-              {filteredDevices.map(device => (
-                <article className="incident-card" key={device.id}>
-                  <div className="incident-card-header">
-                    <StatusBadge variant={device.status}>
-                      {device.status}
-                    </StatusBadge>
-
-                    <span className="incident-type">
-                      {device.deviceName}
-                    </span>
-                  </div>
-
-                  <p className="incident-message">
-                    {device.deviceType} edge node registered at {device.ipAddress}
-                  </p>
-
-                  <div className="incident-meta-grid">
-                    <div>
-                      <span>IP Address</span>
-                      <strong>{device.ipAddress}</strong>
-                    </div>
-
-                    <div>
-                      <span>Registered</span>
-                      <strong>{formatDate(device.registeredAt)}</strong>
-                    </div>
-
-                    <div>
-                      <span>Last Heartbeat</span>
-                      <strong>{formatDate(device.lastHeartbeat)}</strong>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
+          <p className="device-inventory-summary">Showing {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + devices.length} of {inventory.totalElements} devices</p>
+          <div className="device-inventory-table-wrap">
+            <table className="device-inventory-table">
+              <thead><tr><th>Device</th><th>Type</th><th>Status</th><th>Heartbeat</th><th>Firmware</th><th>Project</th><th>Registration</th><th>Last communication</th><th>Tags</th><th>Location</th></tr></thead>
+              <tbody>{devices.map(device => (
+                <tr key={device.deviceId} className={device.operationalStatus?.toLowerCase()}>
+                  <td><strong>{device.name}</strong><small>{device.deviceId}</small></td><td>{device.type}</td>
+                  <td><StatusBadge variant={device.operationalStatus}>{device.operationalStatus}</StatusBadge></td>
+                  <td><strong>{device.heartbeatStatus.replaceAll("_", " ")}</strong><small>{formatDate(device.latestHeartbeat)}</small></td>
+                  <td>{optionalValue(device.firmwareVersion)}</td><td>{optionalValue(device.assignedProject)}</td>
+                  <td>{formatDate(device.registrationDate)}</td><td>{formatDate(device.lastSeen)}</td>
+                  <td>{device.tags?.length ? device.tags.join(", ") : "None"}</td><td>{optionalValue(device.location)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <div className="device-inventory-cards">{devices.map(device => (
+            <article key={device.deviceId} className={`device-inventory-card ${device.operationalStatus?.toLowerCase()}`}>
+              <header><div><strong>{device.name}</strong><small>{device.deviceId}</small></div><StatusBadge variant={device.operationalStatus}>{device.operationalStatus}</StatusBadge></header>
+              <dl><div><dt>Type</dt><dd>{device.type}</dd></div><div><dt>Heartbeat</dt><dd>{device.heartbeatStatus.replaceAll("_", " ")} · {formatDate(device.latestHeartbeat)}</dd></div><div><dt>Firmware</dt><dd>{optionalValue(device.firmwareVersion)}</dd></div><div><dt>Project</dt><dd>{optionalValue(device.assignedProject)}</dd></div><div><dt>Registered</dt><dd>{formatDate(device.registrationDate)}</dd></div><div><dt>Last communication</dt><dd>{formatDate(device.lastSeen)}</dd></div><div><dt>Tags</dt><dd>{device.tags?.length ? device.tags.join(", ") : "None"}</dd></div><div><dt>Location</dt><dd>{optionalValue(device.location)}</dd></div></dl>
+            </article>
+          ))}</div>
         </>
+      )}
+
+      {(inventory?.totalPages || 0) > 1 && (
+        <nav className="device-inventory-pagination" aria-label="Device inventory pagination"><button type="button" disabled={page === 0} onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page + 1} of {inventory.totalPages}</span><button type="button" disabled={page + 1 >= inventory.totalPages} onClick={() => setPage(value => value + 1)}>Next</button></nav>
       )}
     </section>
   );
