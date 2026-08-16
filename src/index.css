@@ -3742,6 +3742,16 @@ input:focus {
   }
 }
 /* Sprint 9 Device Inventory */
+.device-tag-filter { min-width: 12rem; border: 1px solid var(--border-color, #d7dce5); border-radius: .5rem; padding: .5rem; }
+.device-tag-filter label { display: inline-flex; align-items: center; gap: .35rem; margin-right: .75rem; }
+.device-organisation-dialog { width: min(58rem, calc(100vw - 2rem)); max-height: 90vh; overflow: auto; }
+.organisation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.organisation-list { list-style: none; padding: 0; }
+.organisation-list li { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; border-bottom: 1px solid var(--border-color, #e5e7eb); }
+.organisation-list li > :first-child { flex: 1; text-align: left; }
+.organisation-assignment { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #e5e7eb); }
+.organisation-assignment fieldset { margin: .75rem 0; }
+@media (max-width: 760px) { .organisation-grid { grid-template-columns: 1fr; } }
 .device-inventory-page { width: min(1380px, 100%); margin: 0 auto; padding: 24px; box-sizing: border-box; text-align: left; }
 .device-inventory-controls { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(150px, 220px) minmax(140px, 190px); align-items: end; gap: 12px; margin: 20px 0; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); }
 .device-inventory-controls label { display: grid; gap: 6px; font-weight: 800; color: var(--text-h); }
