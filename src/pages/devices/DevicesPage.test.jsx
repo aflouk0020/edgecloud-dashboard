@@ -7,6 +7,7 @@ import DevicesPage from "./DevicesPage";
 vi.mock("../../services/deviceService", () => ({
   getDeviceInventory: vi.fn(), deactivateDevice: vi.fn(), reactivateDevice: vi.fn(),
   removeDevice: vi.fn(), getDeviceHistory: vi.fn(), registerDevice: vi.fn(), updateDevice: vi.fn()
+  , getDeviceConfiguration: vi.fn(), updateDeviceConfiguration: vi.fn(), getDeviceConfigurationHistory: vi.fn(), restoreDeviceConfiguration: vi.fn(), getDeviceConfigurationTemplates: vi.fn(), createDeviceConfigurationTemplate: vi.fn(), updateDeviceConfigurationTemplate: vi.fn(), applyDeviceConfigurationTemplate: vi.fn()
 }));
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: "ADMIN" }) }));
 
