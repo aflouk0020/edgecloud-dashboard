@@ -3752,6 +3752,12 @@ input:focus {
 .organisation-assignment { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #e5e7eb); }
 .organisation-assignment fieldset { margin: .75rem 0; }
 @media (max-width: 760px) { .organisation-grid { grid-template-columns: 1fr; } }
+.heartbeat-dialog { width: min(58rem, calc(100vw - 2rem)); max-height: 90vh; overflow: auto; }
+.heartbeat-summary dl { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: .75rem; }
+.heartbeat-summary dl div, .heartbeat-statistics span { padding: .75rem; border-radius: .5rem; background: rgba(148,163,184,.1); }
+.heartbeat-summary dt { font-size: .75rem; opacity: .72; }.heartbeat-summary dd { margin: .25rem 0 0; font-weight: 600; }
+.heartbeat-statistics { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+@media(max-width:760px){.heartbeat-summary dl{grid-template-columns:1fr 1fr}.heartbeat-dialog .device-inventory-table{font-size:.8rem}}
 .device-inventory-page { width: min(1380px, 100%); margin: 0 auto; padding: 24px; box-sizing: border-box; text-align: left; }
 .device-inventory-controls { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(150px, 220px) minmax(140px, 190px); align-items: end; gap: 12px; margin: 20px 0; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); }
 .device-inventory-controls label { display: grid; gap: 6px; font-weight: 800; color: var(--text-h); }

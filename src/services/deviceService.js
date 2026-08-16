@@ -4,11 +4,12 @@ export async function getDevices() {
   return apiRequest("/api/v1/devices");
 }
 
-export async function getDeviceInventory({ search = "", page = 0, size = 20, sort = "name", direction = "asc", projectId = "", groupId = "", tagIds = [] } = {}) {
+export async function getDeviceInventory({ search = "", page = 0, size = 20, sort = "name", direction = "asc", projectId = "", groupId = "", tagIds = [], heartbeatStatus = "" } = {}) {
   const params = new URLSearchParams({ search, page, size, sort, direction });
   if (projectId) params.set("projectId", projectId);
   if (groupId) params.set("groupId", groupId);
   tagIds.forEach(id => params.append("tagIds", id));
+  if (heartbeatStatus) params.set("heartbeatStatus", heartbeatStatus);
   return apiRequest(`/api/v1/devices/inventory?${params.toString()}`);
 }
 
@@ -34,6 +35,9 @@ export const deactivateDevice = id => apiRequest(`${managementPath}/${id}/deacti
 export const reactivateDevice = id => apiRequest(`${managementPath}/${id}/reactivate`, { method: "POST" });
 export const removeDevice = id => apiRequest(`${managementPath}/${id}`, { method: "DELETE" });
 export const getDeviceHistory = id => apiRequest(`${managementPath}/${id}/history`);
+export const getHeartbeatState = (id, projectId = "") => apiRequest(projectId ? `${organisationPath(projectId)}/devices/${id}/heartbeat` : `${managementPath}/${id}/heartbeat`);
+export const getHeartbeatHistory = (id, page = 0, size = 20, projectId = "") => apiRequest(`${projectId ? `${organisationPath(projectId)}/devices/${id}` : `${managementPath}/${id}`}/heartbeat/history?page=${page}&size=${size}`);
+export const getHeartbeatStatistics = (id, projectId = "") => apiRequest(`${projectId ? `${organisationPath(projectId)}/devices/${id}` : `${managementPath}/${id}`}/heartbeat/statistics`);
 
 export const getDeviceConfiguration = id => apiRequest(`${managementPath}/${id}/configuration`);
 export const updateDeviceConfiguration = (id, payload) => apiRequest(`${managementPath}/${id}/configuration`, { method: "PUT", body: JSON.stringify(payload) });

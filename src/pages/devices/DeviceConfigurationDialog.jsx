@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { applyDeviceConfigurationTemplate, createDeviceConfigurationTemplate, getDeviceConfiguration, getDeviceConfigurationHistory, getDeviceConfigurationTemplates, restoreDeviceConfiguration, updateDeviceConfiguration, updateDeviceConfigurationTemplate } from "../../services/deviceService";
 
 const fields = [
-  ["pollingIntervalSeconds", "Polling interval (seconds)"], ["heartbeatIntervalSeconds", "Heartbeat interval (seconds)"],
+  ["pollingIntervalSeconds", "Polling interval (seconds)"], ["heartbeatIntervalSeconds", "Heartbeat interval (seconds)"], ["heartbeatTimeoutSeconds", "Heartbeat timeout (seconds)"],
   ["metricsCollectionIntervalSeconds", "Metrics frequency (seconds)"]
 ];
 
-function payload(form) { return { ...form, pollingIntervalSeconds: Number(form.pollingIntervalSeconds), heartbeatIntervalSeconds: Number(form.heartbeatIntervalSeconds), metricsCollectionIntervalSeconds: Number(form.metricsCollectionIntervalSeconds), tags: typeof form.tags === "string" ? form.tags.split(",").map(x => x.trim()).filter(Boolean) : form.tags || [] }; }
+function payload(form) { return { ...form, pollingIntervalSeconds: Number(form.pollingIntervalSeconds), heartbeatIntervalSeconds: Number(form.heartbeatIntervalSeconds), heartbeatTimeoutSeconds: Number(form.heartbeatTimeoutSeconds), metricsCollectionIntervalSeconds: Number(form.metricsCollectionIntervalSeconds), tags: typeof form.tags === "string" ? form.tags.split(",").map(x => x.trim()).filter(Boolean) : form.tags || [] }; }
 function editable(value) { return { ...value, tags: (value.tags || []).join(", ") }; }
 function stamp(value) { return value ? new Date(value).toLocaleString("en-IE") : "Default configuration"; }
 
@@ -19,7 +19,7 @@ export default function DeviceConfigurationDialog({ device, role, onClose }) {
   // Reload the external configuration resource when the selected device changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [device.deviceId]);
-  function validate(value) { if ([value.pollingIntervalSeconds,value.heartbeatIntervalSeconds,value.metricsCollectionIntervalSeconds].some(v => Number(v) < 5)) return "Intervals must be at least 5 seconds."; if (value.apiEndpoint && !/^https?:\/\/\S+$/.test(value.apiEndpoint)) return "API endpoint must be an HTTP(S) URL."; if (payload(value).tags.length > 20 || payload(value).tags.some(t => t.length > 50)) return "Use at most 20 tags of 50 characters each."; return ""; }
+  function validate(value) { if ([value.pollingIntervalSeconds,value.heartbeatIntervalSeconds,value.metricsCollectionIntervalSeconds].some(v => Number(v) < 5)) return "Intervals must be at least 5 seconds."; if(Number(value.heartbeatTimeoutSeconds)<=2*Number(value.heartbeatIntervalSeconds)) return "Heartbeat timeout must be greater than twice the heartbeat interval."; if (value.apiEndpoint && !/^https?:\/\/\S+$/.test(value.apiEndpoint)) return "API endpoint must be an HTTP(S) URL."; if (payload(value).tags.length > 20 || payload(value).tags.some(t => t.length > 50)) return "Use at most 20 tags of 50 characters each."; return ""; }
   async function act(action, success) { setBusy(true); setError(""); setMessage(""); try { await action(); setMessage(success); await load(); } catch (e) { setError(e.message || "Configuration operation failed."); } finally { setBusy(false); } }
   function save(e) { e.preventDefault(); const invalid=validate(form); if(invalid){setError(invalid);return;} act(()=>updateDeviceConfiguration(device.deviceId,payload(form)),"Configuration saved as a new version."); }
   function restore(version) { if(window.confirm(`Restore configuration version ${version}? A new version will be created.`)) act(()=>restoreDeviceConfiguration(device.deviceId,version),`Version ${version} restored as a new version.`); }

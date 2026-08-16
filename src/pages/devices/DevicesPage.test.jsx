@@ -10,6 +10,7 @@ vi.mock("../../services/deviceService", () => ({
   , getAccessibleProjects: vi.fn(), getDeviceGroups: vi.fn(), getDeviceTags: vi.fn()
   , createDeviceGroup: vi.fn(), updateDeviceGroup: vi.fn(), deleteDeviceGroup: vi.fn(), getGroupMembers: vi.fn(), assignGroupDevices: vi.fn(), removeGroupDevice: vi.fn(), createDeviceTag: vi.fn(), updateDeviceTag: vi.fn(), deleteDeviceTag: vi.fn(), assignDeviceTags: vi.fn()
   , getAssignedDeviceTags: vi.fn()
+  , getHeartbeatState: vi.fn(), getHeartbeatHistory: vi.fn(), getHeartbeatStatistics: vi.fn()
   , getDeviceConfiguration: vi.fn(), updateDeviceConfiguration: vi.fn(), getDeviceConfigurationHistory: vi.fn(), restoreDeviceConfiguration: vi.fn(), getDeviceConfigurationTemplates: vi.fn(), createDeviceConfigurationTemplate: vi.fn(), updateDeviceConfigurationTemplate: vi.fn(), applyDeviceConfigurationTemplate: vi.fn()
 }));
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: "ADMIN" }) }));
@@ -90,8 +91,9 @@ describe("DevicesPage", () => {
     await screen.findByRole("option", { name: "Production" });
     await user.selectOptions(screen.getByLabelText("Group filter"), "group-1");
     await user.click(screen.getByLabelText("Critical")); await user.click(screen.getByLabelText("ARM64"));
-    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-1", groupId: "group-1", tagIds: ["tag-1", "tag-2"] })));
+    await user.selectOptions(screen.getByLabelText("Heartbeat status filter"),"OFFLINE");
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-1", groupId: "group-1", tagIds: ["tag-1", "tag-2"],heartbeatStatus:"OFFLINE" })));
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
-    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ groupId: "", tagIds: [] })));
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ groupId: "", tagIds: [],heartbeatStatus:"" })));
   });
 });
