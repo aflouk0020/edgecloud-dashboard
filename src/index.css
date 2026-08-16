@@ -3753,11 +3753,17 @@ input:focus {
 .organisation-assignment fieldset { margin: .75rem 0; }
 @media (max-width: 760px) { .organisation-grid { grid-template-columns: 1fr; } }
 .heartbeat-dialog { width: min(58rem, calc(100vw - 2rem)); max-height: 90vh; overflow: auto; }
+.device-maintenance-dialog { width: min(52rem, calc(100vw - 2rem)); }
+.device-maintenance-summary { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; }
+.device-maintenance-summary dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.device-maintenance-summary dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.device-maintenance-success { color: #15803d; font-weight: 700; }
+.device-maintenance-history li { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: 10px; }
 .heartbeat-summary dl { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: .75rem; }
 .heartbeat-summary dl div, .heartbeat-statistics span { padding: .75rem; border-radius: .5rem; background: rgba(148,163,184,.1); }
 .heartbeat-summary dt { font-size: .75rem; opacity: .72; }.heartbeat-summary dd { margin: .25rem 0 0; font-weight: 600; }
 .heartbeat-statistics { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
-@media(max-width:760px){.heartbeat-summary dl{grid-template-columns:1fr 1fr}.heartbeat-dialog .device-inventory-table{font-size:.8rem}}
+@media(max-width:760px){.heartbeat-summary dl,.device-maintenance-summary dl{grid-template-columns:1fr}.heartbeat-dialog .device-inventory-table{font-size:.8rem}.device-maintenance-history li{grid-template-columns:1fr}}
 .device-inventory-page { width: min(1380px, 100%); margin: 0 auto; padding: 24px; box-sizing: border-box; text-align: left; }
 .device-inventory-controls { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(150px, 220px) minmax(140px, 190px); align-items: end; gap: 12px; margin: 20px 0; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); }
 .device-inventory-controls label { display: grid; gap: 6px; font-weight: 800; color: var(--text-h); }
