@@ -46,7 +46,7 @@ export default function DevicesPage() {
   const [heartbeatStatus,setHeartbeatStatus]=useState("");
   const canManage = role === "ADMIN" || role === "OPERATOR" || role === "PROJECT_ADMIN";
 
-  useEffect(() => { getAccessibleProjects().then(items => { setProjects(items); if (role === "PROJECT_ADMIN" && items.length) setProjectId(items[0].id); }).catch(() => setProjects([])); }, [role]);
+  useEffect(() => { getAccessibleProjects().then(items => { const activeProjects = items.filter(project => project.status === "ACTIVE"); setProjects(items); if (role === "PROJECT_ADMIN" && activeProjects.length) setProjectId(activeProjects[0].id); }).catch(() => setProjects([])); }, [role]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!projectId) { setGroups([]); setTags([]); return; } Promise.all([getDeviceGroups(projectId), getDeviceTags(projectId)]).then(([g, t]) => { setGroups(g); setTags(t); }).catch(() => { setGroups([]); setTags([]); }); }, [projectId, reloadKey]);
 
@@ -111,7 +111,7 @@ export default function DevicesPage() {
       <form className="device-inventory-controls" onSubmit={submitSearch}>
         <label><span>Search by device name or ID</span><input type="search" value={searchInput} placeholder="Search devices..." onChange={event => setSearchInput(event.target.value)} /></label>
         <PrimaryButton type="submit">Search</PrimaryButton>
-        <label><span>Project</span><select aria-label="Project" value={projectId} onChange={event => { setPage(0); setProjectId(event.target.value); setGroupId(""); setTagIds([]); }}><option value="">All accessible devices</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+        <label><span>Project</span><select aria-label="Project" value={projectId} onChange={event => { setPage(0); setProjectId(event.target.value); setGroupId(""); setTagIds([]); }}><option value="">All accessible devices</option>{projects.map(project => <option key={project.id} value={project.id} disabled={project.status !== "ACTIVE"}>{project.name}{project.status !== "ACTIVE" ? " (Archived)" : ""}</option>)}</select></label>
         <label><span>Group</span><select aria-label="Group filter" disabled={!projectId} value={groupId} onChange={event => { setPage(0); setGroupId(event.target.value); }}><option value="">All groups</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <fieldset className="device-tag-filter" disabled={!projectId}><legend>Tags (match all)</legend>{tags.map(tag => <label key={tag.id}><input type="checkbox" checked={tagIds.includes(tag.id)} onChange={event => { setPage(0); setTagIds(ids => event.target.checked ? [...ids, tag.id] : ids.filter(id => id !== tag.id)); }} />{tag.name}</label>)}</fieldset>
         <label><span>Heartbeat</span><select aria-label="Heartbeat status filter" value={heartbeatStatus} onChange={event=>{setPage(0);setHeartbeatStatus(event.target.value)}}><option value="">All heartbeat states</option>{["ONLINE","HEALTHY","DELAYED","OFFLINE","UNKNOWN"].map(value=><option key={value}>{value}</option>)}</select></label>
