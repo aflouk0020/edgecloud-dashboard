@@ -3765,12 +3765,17 @@ input:focus {
 .heartbeat-statistics { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
 @media(max-width:760px){.heartbeat-summary dl,.device-maintenance-summary dl{grid-template-columns:1fr}.heartbeat-dialog .device-inventory-table{font-size:.8rem}.device-maintenance-history li{grid-template-columns:1fr}}
 .device-inventory-page { width: min(1380px, 100%); margin: 0 auto; padding: 24px; box-sizing: border-box; text-align: left; }
-.device-inventory-controls { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(150px, 220px) minmax(140px, 190px); align-items: end; gap: 12px; margin: 20px 0; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); }
-.device-inventory-controls label { display: grid; gap: 6px; font-weight: 800; color: var(--text-h); }
+.device-inventory-controls { display: grid; grid-template-columns: minmax(280px, 2fr) auto repeat(2, minmax(180px, 1fr)); align-items: end; gap: 16px; margin: 20px 0; padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); }
+.device-inventory-controls > * { min-width: 0; }
+.device-inventory-controls label { display: grid; min-width: 0; gap: 6px; font-weight: 800; color: var(--text-h); }
 .device-inventory-controls label span { font-size: 0.78rem; text-transform: uppercase; color: var(--text); }
 .device-inventory-controls input,
 .device-inventory-controls select,
 .device-inventory-pagination button { min-height: 40px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-h); font: inherit; }
+.device-inventory-controls input,
+.device-inventory-controls select { width: 100%; min-width: 0; box-sizing: border-box; }
+.device-inventory-controls > .ui-primary-button { min-width: 120px; min-height: 40px; justify-self: start; }
+.device-inventory-controls .device-tag-filter { min-width: 0; margin: 0; box-sizing: border-box; }
 .device-inventory-summary { color: var(--text); }
 .device-inventory-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 18px; }
 .device-inventory-table { width: 100%; min-width: 1300px; border-collapse: collapse; background: var(--bg); }
@@ -3810,7 +3815,8 @@ input:focus {
 .configuration-history ol { display:grid; gap:10px; padding:0; list-style:none; }.configuration-history li { display:flex; justify-content:space-between; gap:14px; padding:12px; border:1px solid var(--border); border-radius:10px; }.configuration-history li span,.configuration-history li small { display:block; margin-top:4px; color:var(--text); overflow-wrap:anywhere; }
 
 @media (max-width: 1050px) {
-  .device-inventory-controls { grid-template-columns: 1fr 1fr; }
+  .device-inventory-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .device-inventory-controls > .ui-primary-button { width: 100%; justify-self: stretch; }
   .device-inventory-table-wrap { display: none; }
   .device-inventory-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .device-inventory-card { padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); }

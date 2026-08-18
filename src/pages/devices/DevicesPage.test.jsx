@@ -14,7 +14,8 @@ vi.mock("../../services/deviceService", () => ({
   , getDeviceMaintenance: vi.fn(), getDeviceMaintenanceHistory: vi.fn(), enableDeviceMaintenance: vi.fn(), disableDeviceMaintenance: vi.fn()
   , getDeviceConfiguration: vi.fn(), updateDeviceConfiguration: vi.fn(), getDeviceConfigurationHistory: vi.fn(), restoreDeviceConfiguration: vi.fn(), getDeviceConfigurationTemplates: vi.fn(), createDeviceConfigurationTemplate: vi.fn(), updateDeviceConfigurationTemplate: vi.fn(), applyDeviceConfigurationTemplate: vi.fn()
 }));
-vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: "ADMIN" }) }));
+const { mockRole } = vi.hoisted(() => ({ mockRole: { value: "ADMIN" } }));
+vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ role: mockRole.value }) }));
 
 const devices = [
   { deviceId: "11111111-1111-1111-1111-111111111111", name: "Alpha", type: "SENSOR", operationalStatus: "ONLINE", heartbeatStatus: "CURRENT", latestHeartbeat: "2026-08-16T10:00:00", maintenanceMode: true, maintenanceReason: "Planned inspection", firmwareVersion: null, assignedProject: null, registrationDate: "2026-08-01T09:00:00", lastSeen: "2026-08-16T10:00:00", tags: [], location: null },
@@ -26,7 +27,7 @@ function response(overrides = {}) {
 }
 
 describe("DevicesPage", () => {
-  beforeEach(() => { vi.clearAllMocks(); getAccessibleProjects.mockResolvedValue([]); getDeviceGroups.mockResolvedValue([]); getDeviceTags.mockResolvedValue([]); });
+  beforeEach(() => { vi.clearAllMocks(); mockRole.value = "ADMIN"; getAccessibleProjects.mockResolvedValue([]); getDeviceGroups.mockResolvedValue([]); getDeviceTags.mockResolvedValue([]); });
 
   it("renders inventory metadata and keeps offline devices visible", async () => {
     getDeviceInventory.mockResolvedValue(response());
@@ -86,7 +87,7 @@ describe("DevicesPage", () => {
 
   it("composes project, group and multiple tag filters and clears them", async () => {
     const user = userEvent.setup();
-    getAccessibleProjects.mockResolvedValue([{ id: "project-1", name: "Factory" }]);
+    getAccessibleProjects.mockResolvedValue([{ id: "project-1", name: "Factory", status: "ACTIVE" }]);
     getDeviceGroups.mockResolvedValue([{ id: "group-1", name: "Production" }]);
     getDeviceTags.mockResolvedValue([{ id: "tag-1", name: "Critical" }, { id: "tag-2", name: "ARM64" }]);
     getDeviceInventory.mockResolvedValue(response());
@@ -99,5 +100,48 @@ describe("DevicesPage", () => {
     await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "project-1", groupId: "group-1", tagIds: ["tag-1", "tag-2"],heartbeatStatus:"OFFLINE" })));
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ groupId: "", tagIds: [],heartbeatStatus:"" })));
+  });
+
+  it("shows archived projects as unavailable while preserving active operational selection", async () => {
+    const user = userEvent.setup();
+    getAccessibleProjects.mockResolvedValue([
+      { id: "archived-1", name: "SCRUM-720 Validation", status: "ARCHIVED" },
+      { id: "active-1", name: "Factory", status: "ACTIVE" }
+    ]);
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />);
+    await screen.findAllByText("Alpha");
+
+    expect(screen.getByRole("option", { name: "SCRUM-720 Validation (Archived)" })).toBeDisabled();
+    expect(screen.getByRole("option", { name: "Factory" })).toBeInTheDocument();
+    expect(getDeviceInventory).toHaveBeenCalledWith(expect.objectContaining({ projectId: "" }));
+
+    await user.selectOptions(screen.getByLabelText("Project"), "active-1");
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "active-1" })));
+  });
+
+  it("auto-selects the first active project for PROJECT_ADMIN but never an archived project", async () => {
+    mockRole.value = "PROJECT_ADMIN";
+    getAccessibleProjects.mockResolvedValue([
+      { id: "archived-1", name: "Archived", status: "ARCHIVED" },
+      { id: "active-1", name: "Active", status: "ACTIVE" }
+    ]);
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />);
+
+    await waitFor(() => expect(getDeviceInventory).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "active-1" })));
+    expect(screen.getByRole("option", { name: "Archived (Archived)" })).toBeDisabled();
+  });
+
+  it("keeps VIEWER on all accessible devices without management controls", async () => {
+    mockRole.value = "VIEWER";
+    getAccessibleProjects.mockResolvedValue([{ id: "active-1", name: "Active", status: "ACTIVE" }]);
+    getDeviceInventory.mockResolvedValue(response());
+    render(<DevicesPage />);
+    await screen.findAllByText("Alpha");
+
+    expect(getDeviceInventory).toHaveBeenCalledWith(expect.objectContaining({ projectId: "" }));
+    expect(screen.queryByRole("button", { name: "Register Device" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Manage groups and tags" })).not.toBeInTheDocument();
   });
 });
